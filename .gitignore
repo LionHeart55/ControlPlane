@@ -1,0 +1,38 @@
+# Local environment — never commit real credentials. Template is .env.example.
+.env
+.env.*
+!.env.example
+
+# Docker bind-mount data (etcd, minio, milvus, postgres)
+volumes/
+
+# Python
+__pycache__/
+*.pyc
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node / dashboard
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+*.log
+
+# Ops artefacts
+results.json
+
+# Editors and OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

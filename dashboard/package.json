@@ -1,0 +1,7 @@
+{
+  "name": "milvus-cp-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "comment": "Placeholder. Dependencies and scripts are filled by WP-12."
+}

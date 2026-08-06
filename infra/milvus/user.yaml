@@ -1,0 +1,2 @@
+# Optional Milvus config overrides, mounted at /milvus/configs/user.yaml.
+# Filled by WP-02.

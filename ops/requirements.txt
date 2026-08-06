@@ -1,0 +1,18 @@
+# Dependencies for the standalone Milvus operations script (ops/milvus_demo.py).
+#
+# Deliberately separate from control_plane/pyproject.toml: this script must run
+# against a bare Milvus with no control plane present.
+#
+#   python3.12 -m venv .venv && . .venv/bin/activate
+#   pip install -r ops/requirements.txt
+#
+# NOTE: use a Python 3.12 interpreter. The optional MiniLM extra below has no
+# wheels for newer interpreters; the default --embedder random path is unaffected.
+
+# pymilvus 3.x targets a different server generation — the <2.7 cap is required.
+pymilvus>=2.6,<2.7
+numpy>=1.26,<3
+
+# Optional: --embedder minilm. Pulls ~90 MB of model weights plus torch, so it is
+# left commented out by default and the grader is never blocked on a model download.
+# sentence-transformers>=3.0,<6

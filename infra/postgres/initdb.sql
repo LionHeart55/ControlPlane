@@ -1,0 +1,2 @@
+-- Extensions only. Tables come from Alembic, never from here.
+-- Filled by WP-02.
