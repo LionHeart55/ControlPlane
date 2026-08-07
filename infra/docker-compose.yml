@@ -1,2 +1,213 @@
-# Milvus 2.6 standalone + control plane stack.
-# Filled by WP-02 (infra profile) and WP-13 (app profile).
+# Milvus 2.6 standalone + control-plane stack.
+#
+# ---------------------------------------------------------------------------
+# INVOCATION — this matters, do not run bare `docker compose` from infra/.
+# ---------------------------------------------------------------------------
+# Compose resolves relative bind mounts AND locates .env against the *project
+# directory*, which defaults to the directory holding this file. Since this file
+# lives in infra/ but .env lives at the repo root, always run:
+#
+#   docker compose --env-file .env -f infra/docker-compose.yml --project-directory . <cmd>
+#
+# from the repo root. deploy.sh (WP-03) and the Makefile wrap this. Get it wrong
+# and every ${VAR} silently falls back to its default — the image pins vanish and
+# volume data lands in infra/volumes/ instead of ./volumes/, which is the
+# directory `deploy.sh destroy` deletes.
+#
+# ---------------------------------------------------------------------------
+# TOPOLOGY
+# ---------------------------------------------------------------------------
+# Milvus 2.6 embeds Woodpecker as its WAL and uses MinIO as the WAL backend, so
+# there is deliberately NO Pulsar and NO Kafka container here. Three infra
+# containers back Milvus (etcd for metadata, MinIO for objects, standalone for
+# the engine); cp-postgres is the control plane's own store.
+#
+# No `restart:` policy on any infra service — an auto-restart would silently
+# undo the WP-15 chaos injections and make the reliability drills untrustworthy.
+
+name: ${COMPOSE_PROJECT_NAME:-milvus-cp}
+
+services:
+  # -------------------------------------------------------------------------
+  # etcd — Milvus metadata store. Intentionally NOT published to the host:
+  # it is an internal dependency, and exposing it invites accidental writes.
+  # -------------------------------------------------------------------------
+  etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:${ETCD_VERSION}
+    profiles: ["infra"]
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: "1000"
+      ETCD_QUOTA_BACKEND_BYTES: "4294967296"
+      ETCD_SNAPSHOT_COUNT: "50000"
+    command:
+      - etcd
+      - -advertise-client-urls=http://etcd:2379
+      - -listen-client-urls=http://0.0.0.0:2379
+      - --data-dir=/etcd
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/etcd:/etcd
+    networks: [cp-net]
+    labels:
+      com.milvus-cp.component: milvus-etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # MinIO — S3-compatible object store. Backs both Milvus segment storage and
+  # the Woodpecker WAL. Console on 9001 is published as a diagnosis aid for the
+  # WP-15 drills (scenario C is "MinIO is down but Milvus still says healthy").
+  # -------------------------------------------------------------------------
+  minio:
+    container_name: milvus-minio
+    image: minio/minio:${MINIO_VERSION}
+    profiles: ["infra"]
+    environment:
+      # MINIO_ROOT_USER/PASSWORD, not the deprecated MINIO_ACCESS_KEY/SECRET_KEY
+      # that the upstream Milvus compose file still uses.
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: minio server /minio_data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/minio:/minio_data
+    networks: [cp-net]
+    labels:
+      com.milvus-cp.component: milvus-minio
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # Milvus standalone — the engine. gRPC on 19530, metrics/health/WebUI on 9091.
+  # -------------------------------------------------------------------------
+  standalone:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:${MILVUS_VERSION}
+    profiles: ["infra"]
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_REGION: us-east-1
+
+      # Pin the message queue explicitly. Milvus 2.6 defaults to Woodpecker, but
+      # stating it means the "no Pulsar/Kafka" property is enforced by this file
+      # rather than inherited from a default that could change.
+      MQ_TYPE: woodpecker
+
+      # Without this Milvus uses its own default bucket ("a-bucket") and creates
+      # it itself, leaving the bucket deploy.sh provisions empty and the control
+      # plane reporting on a bucket Milvus never writes to.
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET}
+
+      # Credentials happen to match MinIO's defaults today, so omitting these
+      # appears to work — right up until someone changes MINIO_ROOT_PASSWORD,
+      # at which point Milvus fails to reach object storage in a non-obvious way.
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/milvus:/var/lib/milvus
+      # Repo-root relative: the project directory is the repo root, not infra/.
+      - ./infra/milvus/user.yaml:/milvus/configs/user.yaml:ro
+    networks: [cp-net]
+    labels:
+      com.milvus-cp.component: milvus-standalone
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 15s
+      timeout: 10s
+      # Milvus needs roughly 90-120s to become healthy on a cold first boot.
+      # Failures inside start_period do not count against retries.
+      start_period: 120s
+      retries: 5
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL — the control plane's own store.
+  # initdb.sql creates the pgcrypto extension ONLY. Tables come from Alembic.
+  # -------------------------------------------------------------------------
+  postgres:
+    container_name: cp-postgres
+    image: postgres:${POSTGRES_VERSION}
+    profiles: ["infra"]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      # Initialise into a subdirectory of the bind mount. Postgres refuses to
+      # initdb into a non-empty directory, and bind mounts routinely acquire
+      # stray files (.DS_Store, lost+found).
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      # Host publish port only. POSTGRES_PORT is the IN-NETWORK port that cp-api
+      # uses to reach cp-postgres and must stay 5432; conflating the two means a
+      # host-side port clash silently breaks the API's connection string.
+      # Override POSTGRES_HOST_PORT in .env when something already owns 5432.
+      - "${POSTGRES_HOST_PORT:-${POSTGRES_PORT:-5432}}:5432"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-./volumes}/postgres:/var/lib/postgresql/data
+      # Repo-root relative: the project directory is the repo root, not infra/.
+      - ./infra/postgres/initdb.sql:/docker-entrypoint-initdb.d/10-initdb.sql:ro
+    networks: [cp-net]
+    labels:
+      com.milvus-cp.component: cp-postgres
+    healthcheck:
+      # $$ escapes the $ so the container's shell expands it, not Compose.
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # -------------------------------------------------------------------------
+  # App tier — "app" profile. cp-migrate and cp-api are added by WP-13.
+  # -------------------------------------------------------------------------
+  dashboard:
+    container_name: cp-dashboard
+    profiles: ["app"]
+    build:
+      # Repo root, not dashboard/: the image also needs
+      # infra/nginx/dashboard.conf, and a build context cannot reach above
+      # itself. Same reason the Dockerfile is named explicitly.
+      context: .
+      dockerfile: dashboard/Dockerfile
+    image: milvus-cp/dashboard:${DASHBOARD_IMAGE_TAG:-0.1.0}
+    ports:
+      - "${DASHBOARD_PORT:-8080}:80"
+    networks: [cp-net]
+    labels:
+      com.milvus-cp.component: cp-dashboard
+    healthcheck:
+      # Answered by nginx itself, so this reports the dashboard container's own
+      # liveness and does not turn a cp-api outage into an unhealthy dashboard.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/nginx-health"]
+      interval: 15s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    # NOTE: nginx proxies /api/ to cp-api:8000, which WP-13 adds. Until then
+    # the SPA renders and its API calls return 502 — which the dashboard shows
+    # as an API_UNREACHABLE banner rather than a blank page. No depends_on
+    # yet, because naming a service that does not exist fails `compose config`.
+
+networks:
+  cp-net:
+    driver: bridge
+    name: ${COMPOSE_PROJECT_NAME:-milvus-cp}-net

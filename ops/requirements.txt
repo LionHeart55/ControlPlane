@@ -13,6 +13,27 @@
 pymilvus>=2.6,<2.7
 numpy>=1.26,<3
 
-# Optional: --embedder minilm. Pulls ~90 MB of model weights plus torch, so it is
-# left commented out by default and the grader is never blocked on a model download.
+# --- optional: --embedder minilm ------------------------------------------
+# Left commented out so a clean checkout is never blocked on a ~90 MB model
+# download plus torch. The default --embedder random needs none of it.
+#
+#   pip install 'sentence-transformers>=3.0,<6'
+#
 # sentence-transformers>=3.0,<6
+#
+# PLATFORM CAVEAT — Intel macOS (darwin x86_64).
+# PyTorch ships no macOS x86_64 wheels from v2.4 onward; current builds cover
+# only manylinux x86_64/aarch64, macOS arm64 and Windows. The last Intel-Mac
+# build is torch 2.2.2, which predates NumPy 2 and is below the torch>=2.4 that
+# current transformers requires — so the line above resolves to a broken
+# install there ("Failed to initialize NumPy", then "name 'torch' is not
+# defined").
+#
+# Verified working combination on Intel macOS, in a SEPARATE venv so the older
+# NumPy does not collide with the control plane's:
+#
+#   uv venv --python 3.12 .venv-ops
+#   VIRTUAL_ENV=.venv-ops uv pip install 'numpy<2' 'torch<2.3' \
+#       'sentence-transformers<3' 'pymilvus>=2.6,<2.7'
+#
+# On Apple Silicon, Linux or Windows the plain `pip install` line works.

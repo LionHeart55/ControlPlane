@@ -6,7 +6,9 @@ build-backend = "hatchling.build"
 name = "milvus-control-plane"
 version = "0.1.0"
 description = "Control plane for Milvus 2.6: deployment automation, health, observability."
-readme = "../README.md"
+# No `readme` key on purpose: the Docker build context is control_plane/, so a
+# "../README.md" reference resolves outside the context and the image build
+# fails with a confusing packaging error.
 requires-python = ">=3.12,<3.13"
 
 dependencies = [
@@ -107,7 +109,18 @@ exclude = ["migrations/versions"]
 
 # Third-party packages without bundled type stubs.
 [[tool.mypy.overrides]]
-module = ["pymilvus.*", "docker.*", "apscheduler.*", "cachetools.*", "prometheus_client.*"]
+module = [
+    "pymilvus.*",
+    "docker.*",
+    "apscheduler.*",
+    "cachetools.*",
+    "prometheus_client.*",
+    "grpc",
+    "grpc.*",
+    # Optional extra for `ops/milvus_demo.py --embedder minilm`. Not installed
+    # by default, so it must not fail the typecheck on a clean checkout.
+    "sentence_transformers.*",
+]
 ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------

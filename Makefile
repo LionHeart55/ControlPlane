@@ -10,10 +10,37 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 CP_DIR   := control_plane
-COMPOSE  := infra/docker-compose.yml
 DEPLOY   := ./infra/deploy.sh
 CHAOS    := ./scripts/chaos.sh
 RUFF_CFG := $(CP_DIR)/pyproject.toml
+
+# --project-directory pins the project root so relative bind mounts resolve to
+# ./volumes and .env is actually read. Without it Compose treats infra/ as the
+# project directory, silently drops every ${VAR}, and writes volume data to
+# infra/volumes/. Always invoke Compose through this variable.
+COMPOSE  := docker compose --env-file .env -f infra/docker-compose.yml --project-directory .
+PROFILES := --profile infra --profile app
+
+# Alembic runs on the HOST, so it needs the published port and localhost --
+# .env holds cp-postgres:5432, which only resolves inside cp-net. Read the
+# published port straight out of .env rather than `include`-ing the whole file,
+# which would let any value in there become a Make variable.
+PG_HOST_PORT := $(shell grep -E '^POSTGRES_HOST_PORT=' .env 2>/dev/null | tail -1 | cut -d= -f2)
+PG_HOST_PORT := $(if $(PG_HOST_PORT),$(PG_HOST_PORT),5432)
+
+# Prefer the project virtualenv; fall back to whatever is on PATH.
+ALEMBIC := $(shell [ -x $(CP_DIR)/.venv/bin/alembic ] && echo ./.venv/bin/alembic || echo alembic)
+# Same pattern: prefer the project venv, fall back to whatever is on PATH.
+# Both are run after `cd $(CP_DIR)`, hence the ./ prefix.
+PYTEST  := $(shell [ -x $(CP_DIR)/.venv/bin/pytest ] && echo ./.venv/bin/pytest || echo pytest)
+# ops/ is standalone, but the project venv already carries pymilvus and numpy,
+# so `make demo` reuses it rather than requiring a second environment. Run from
+# the repo root, hence no ./ prefix.
+DEMO_PY   := $(shell [ -x $(CP_DIR)/.venv/bin/python ] && echo $(CP_DIR)/.venv/bin/python || echo python3)
+DEMO_ROWS ?= 5000
+# --keep leaves the collection behind: the dashboard's collections panel and
+# WP-14's integration tests both need populated data to look at.
+DEMO_JSON ?= demo_results.json
 
 # Prefer a ruff on PATH; otherwise run it through uv's ephemeral runner so a
 # fresh clone can lint without a manual install step.
@@ -28,7 +55,7 @@ define require_ruff
 	fi
 endef
 
-.PHONY: help up down destroy logs ps status migrate seed demo smoke test \
+.PHONY: help up down destroy logs ps status migrate migrate-down venv seed demo smoke test \
         chaos-milvus chaos-minio chaos-postgres chaos-recover dashboard fmt lint
 
 help: ## Show this help
@@ -40,28 +67,35 @@ help: ## Show this help
 # Stack lifecycle  (WP-03)
 # ---------------------------------------------------------------------------
 up: ## Bring up the full stack (preflight, wait for health, migrate, seed)
-	@echo "TODO (WP-03): $(DEPLOY) up --profile all"
+	$(DEPLOY) up
 
 down: ## Stop and remove containers, KEEP volumes
-	@echo "TODO (WP-03): $(DEPLOY) down"
+	$(DEPLOY) down
 
-destroy: ## Stop and remove containers AND delete all volume data
-	@echo "TODO (WP-03): $(DEPLOY) destroy"
+destroy: ## Stop and remove containers AND delete all volume data (prompts)
+	$(DEPLOY) destroy
 
 logs: ## Tail logs for all services (or one: make logs s=milvus-standalone)
-	@echo "TODO (WP-03): $(DEPLOY) logs $(s)"
+	$(DEPLOY) logs $(s)
 
 ps: ## List stack containers
-	@echo "TODO (WP-03): docker compose -f $(COMPOSE) ps"
+	$(COMPOSE) $(PROFILES) ps
 
 status: ## Per-service health, endpoint probes and row counts
-	@echo "TODO (WP-03): $(DEPLOY) status"
+	$(DEPLOY) status
 
 # ---------------------------------------------------------------------------
 # Database  (WP-04) and seeding  (WP-03)
 # ---------------------------------------------------------------------------
 migrate: ## Apply Alembic migrations to head
-	@echo "TODO (WP-04): alembic -c $(CP_DIR)/alembic.ini upgrade head"
+	cd $(CP_DIR) && POSTGRES_HOST=localhost POSTGRES_PORT=$(PG_HOST_PORT) $(ALEMBIC) upgrade head
+
+migrate-down: ## Roll all migrations back (destroys the control-plane schema)
+	cd $(CP_DIR) && POSTGRES_HOST=localhost POSTGRES_PORT=$(PG_HOST_PORT) $(ALEMBIC) downgrade base
+
+venv: ## Create the Python 3.12 virtualenv and install dependencies
+	uv venv --python 3.12 $(CP_DIR)/.venv
+	uv pip install --python $(CP_DIR)/.venv/bin/python -e '$(CP_DIR)[dev]'
 
 seed: ## Register the local cluster in the control plane
 	@echo "TODO (WP-03): ./scripts/seed_cluster.sh"
@@ -70,13 +104,14 @@ seed: ## Register the local cluster in the control plane
 # Demo and verification  (WP-11, WP-14)
 # ---------------------------------------------------------------------------
 demo: ## Run the Milvus operations script end to end
-	@echo "TODO (WP-11): python ops/milvus_demo.py --uri http://localhost:19530"
+	$(DEMO_PY) ops/milvus_demo.py --uri http://localhost:19530 \
+		--rows $(DEMO_ROWS) --drop-existing --keep --json-out $(DEMO_JSON)
 
 smoke: ## Walk every API endpoint and assert status codes and fields
-	@echo "TODO (WP-14): ./scripts/smoke_test.sh"
+	./scripts/smoke_test.sh
 
 test: ## Run the pytest suite
-	@echo "TODO (WP-14): pytest $(CP_DIR)/app/tests"
+	cd $(CP_DIR) && $(PYTEST) app/tests
 
 # ---------------------------------------------------------------------------
 # Reliability drills  (WP-15)
@@ -97,7 +132,16 @@ chaos-recover: ## Restore every injected failure
 # Dashboard  (WP-12)
 # ---------------------------------------------------------------------------
 dashboard: ## Run the dashboard dev server against a live API
-	@echo "TODO (WP-12): npm --prefix dashboard run dev"
+	npm --prefix dashboard install
+	npm --prefix dashboard run dev
+
+dashboard-build: ## Type-check and build the dashboard bundle
+	npm --prefix dashboard install
+	npm --prefix dashboard run build
+
+dashboard-test: ## Run the dashboard render tests
+	npm --prefix dashboard install
+	npm --prefix dashboard test
 
 # ---------------------------------------------------------------------------
 # Code quality — implemented now

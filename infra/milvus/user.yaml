@@ -1,2 +1,76 @@
-# Optional Milvus config overrides, mounted at /milvus/configs/user.yaml.
-# Filled by WP-02.
+# Milvus configuration overrides.
+#
+# Mounted read-only at /milvus/configs/user.yaml. Milvus layers this file on top
+# of its built-in milvus.yaml, so only the keys you set here are changed —
+# everything else keeps its default. Precedence, lowest to highest:
+#
+#     milvus.yaml  <  user.yaml  <  environment variables
+#
+# Because environment variables win, anything already set in docker-compose.yml
+# (ETCD_ENDPOINTS, MINIO_ADDRESS, MQ_TYPE, MINIO_BUCKET_NAME, ...) will override
+# the equivalent key here. Use this file for settings that have no env mapping,
+# or when you want a change tracked in version control rather than in .env.
+#
+# Every key below is commented out, so as shipped this file is a no-op.
+# Uncomment a block, then: docker compose restart standalone
+#
+# Full reference:
+#   https://milvus.io/docs/configure-docker.md
+#   https://github.com/milvus-io/milvus/blob/master/configs/milvus.yaml
+
+# ---------------------------------------------------------------------------
+# Log level — the first thing to raise when diagnosing a WP-15 drill.
+#
+# level: debug | info | warn | error | panic | fatal
+#
+# Setting debug is how scenario C (MinIO stopped, Milvus still reporting
+# healthy on :9091) surfaces the underlying object-store errors in
+# `docker logs milvus-standalone`.
+# ---------------------------------------------------------------------------
+# log:
+#   level: debug
+#   file:
+#     rootPath: ""        # empty = stdout only, which is what Docker log capture wants
+#   format: text          # text | json
+
+# ---------------------------------------------------------------------------
+# Message queue / WAL.
+#
+# Milvus 2.6 defaults to woodpecker, an embedded WAL that uses the configured
+# object store (MinIO) as its backend. That is why this stack has no Pulsar or
+# Kafka container. docker-compose.yml pins MQ_TYPE=woodpecker explicitly rather
+# than relying on the default.
+#
+# mqType: woodpecker | rocksmq | natsmq | pulsar | kafka
+#
+# Switching to pulsar or kafka REQUIRES adding the corresponding broker service
+# to docker-compose.yml first — changing this key alone will fail to start.
+# ---------------------------------------------------------------------------
+# mq:
+#   type: woodpecker
+
+# woodpecker:
+#   woodpeckerStorage:
+#     type: minio        # minio | local
+#     rootPath: woodpecker
+
+# ---------------------------------------------------------------------------
+# Object storage — kept here for reference. docker-compose.yml sets all of
+# these via environment variables, which take precedence over this file.
+# ---------------------------------------------------------------------------
+# minio:
+#   address: minio
+#   port: 19000
+#   bucketName: milvus-bucket
+#   rootPath: files
+#   useSSL: false
+
+# ---------------------------------------------------------------------------
+# Resource limits — useful if Docker is memory-constrained. Milvus standalone
+# wants roughly 4 GB; the stack as a whole is documented as needing 8 GB.
+# ---------------------------------------------------------------------------
+# queryNode:
+#   loadMemoryUsageFactor: 1
+# common:
+#   security:
+#     authorizationEnabled: false   # no authn in this demo; see README limitations

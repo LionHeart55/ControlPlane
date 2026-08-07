@@ -28,8 +28,11 @@ dist/
 *.tsbuildinfo
 *.log
 
-# Ops artefacts
+# Ops artefacts — --json-out summaries from ops/milvus_demo.py.
+# demo_results.json is what `make demo` writes; results.json is the name used
+# in the documented example invocation.
 results.json
+demo_results.json
 
 # Editors and OS
 .DS_Store
