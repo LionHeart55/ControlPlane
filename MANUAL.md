@@ -79,7 +79,38 @@ Concretely, it:
 
 ## 3. The instances
 
-Seven containers. Six run continuously; one is a job that exits.
+Seven containers, all created by one `docker compose` project named
+`milvus-cp`. Six run continuously; the seventh is a job that runs once and
+exits. Docker Desktop groups them under the project name:
+
+<p align="center">
+  <a href="docs/images/docker.png">
+    <img src="docs/images/docker.png" width="88%"
+         alt="Docker Desktop showing the milvus-cp compose project expanded into seven containers: cp-dashboard, cp-api, milvus-standalone, cp-migrate, milvus-minio, milvus-etcd and cp-postgres." />
+  </a>
+</p>
+
+<p align="center"><sub><em>Click for full size.</em></sub></p>
+
+Three things in that view are worth reading carefully, because each one
+regularly gets mistaken for a fault:
+
+- **`cp-migrate` has a hollow circle and a ▷ play button**, while the other six
+  have filled green dots and ■ stop buttons. It is **not** broken — it is a
+  one-shot job that already ran, exited 0 and is meant to stay exited. Pressing
+  play re-runs it; it takes about two seconds and stops again.
+- **`cp-api` and `cp-migrate` share one image**, `milvus-cp/api:0.1.0`. That is
+  deliberate — the migration code and the application code are the same build,
+  so they cannot drift apart. Only the command differs.
+- **`cp-postgres` publishes `5433:5432`** on this machine. The left number is
+  the host port (`POSTGRES_HOST_PORT`, moved because something local owned
+  5432); the right is the in-network port the API uses, which never changes.
+  See [§5](#5-configuring).
+
+Everything else is as you would expect: `cp-dashboard` on `8080:80`, `cp-api` on
+`8000:8000`, `milvus-standalone` on `19530` plus a second port (`9091`), and
+`milvus-minio` on `9000` plus its console on `9001`. `milvus-etcd` publishes
+nothing — it is reachable only from inside the compose network.
 
 | Container | Image | Ports (host) | Runs | Purpose |
 |---|---|---|---|---|

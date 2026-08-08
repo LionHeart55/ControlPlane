@@ -75,6 +75,35 @@ touches object storage. That was measured, not assumed — see
 backed by the same object store. That is why the stack is four containers rather
 than seven.
 
+### The control-plane app
+
+<p align="center">
+  <a href="docs/images/dashboard_top.png">
+    <img src="docs/images/dashboard_top.png" width="49%"
+         alt="Dashboard, upper half: HEALTHY status pill, cluster metadata from PostgreSQL, components table showing 6/6 running, collections table, and the metrics tiles." />
+  </a>
+  <a href="docs/images/dashboard_bottom.png">
+    <img src="docs/images/dashboard_bottom.png" width="49%"
+         alt="Dashboard, lower half: the events strip with health transitions and rule numbers, and the log viewer with a component selector and auto-scroll toggle." />
+  </a>
+</p>
+
+<p align="center"><sub><em>Click either image for full size.</em></sub></p>
+
+**Left — the state of the deployment.** Status pill, cluster metadata read from
+PostgreSQL, all six components with images and uptimes, the collections table
+(`demo_docs`, 5 000 rows, HNSW/COSINE, loaded) and the metric tiles. Note
+`13/14 available · 311 families scraped`, with **one tile greyed and labelled
+"not exposed by this version"** — that is the design working: a metric the
+current Milvus does not emit is shown as a gap rather than hidden.
+
+**Right — what happened, and what it is saying.** The events strip carries only
+*transitions*, each stamped with the aggregation rule that fired (`rule 1`
+unreachable, `rule 2` degraded, `rule 5` healthy), so it reads as an incident
+timeline rather than a poll log. Below it, the log viewer with its component
+selector and auto-scroll toggle. The footer reports the `/overview` fan-out
+cost against its budget — `fan-out 821ms of 6s budget`.
+
 ## 3. Prerequisites
 
 | Requirement | Minimum | Check |
