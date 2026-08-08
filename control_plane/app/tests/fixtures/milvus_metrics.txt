@@ -1,0 +1,592 @@
+# Captured from a live Milvus 2.6.20 standalone via GET :9091/metrics.
+#
+# Trimmed, not synthesised. Every allowlisted family is kept COMPLETE --
+# all label series and all histogram buckets -- so aggregation and quantile
+# code runs against real shapes. 40 other families are kept so the
+# parser sees a realistic mix rather than only what it is looking for.
+#
+# Source scrape: 359 families, 16566 lines.
+# This fixture:  54 families.
+#
+# Regenerate after a Milvus upgrade; see docs/ARCHITECTURE.md.
+
+# HELP go_gc_duration_seconds A summary of the wall-time pause (stop-the-world) duration in garbage collection cycles.
+# TYPE go_gc_duration_seconds summary
+go_gc_duration_seconds{quantile="0"} 8.5545e-05
+go_gc_duration_seconds{quantile="0.25"} 0.00023841
+go_gc_duration_seconds{quantile="0.5"} 0.000389755
+go_gc_duration_seconds{quantile="0.75"} 0.000724368
+go_gc_duration_seconds{quantile="1"} 0.004208203
+go_gc_duration_seconds_sum 0.070478547
+go_gc_duration_seconds_count 122
+# HELP go_gc_gogc_percent Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.
+# TYPE go_gc_gogc_percent gauge
+go_gc_gogc_percent 200
+# HELP go_gc_gomemlimit_bytes Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.
+# TYPE go_gc_gomemlimit_bytes gauge
+go_gc_gomemlimit_bytes 9.223372036854776e+18
+# HELP go_goroutines Number of goroutines that currently exist.
+# TYPE go_goroutines gauge
+go_goroutines 691
+# HELP go_info Information about the Go environment.
+# TYPE go_info gauge
+go_info{version="go1.25.8"} 1
+# HELP go_memstats_alloc_bytes Number of bytes allocated in heap and currently in use. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_alloc_bytes gauge
+go_memstats_alloc_bytes 9.2991328e+07
+go_memstats_alloc_bytes_total 9.142999304e+09
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated in heap until now, even if released already. Equals to /gc/heap/allocs:bytes.
+# TYPE go_memstats_alloc_bytes_total counter
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table. Equals to /memory/classes/profiling/buckets:bytes.
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+go_memstats_buck_hash_sys_bytes 2.415193e+06
+# HELP go_memstats_frees_total Total number of heap objects frees. Equals to /gc/heap/frees:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_frees_total counter
+go_memstats_frees_total 1.13128152e+08
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata. Equals to /memory/classes/metadata/other:bytes.
+# TYPE go_memstats_gc_sys_bytes gauge
+go_memstats_gc_sys_bytes 5.670192e+06
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and currently in use, same as go_memstats_alloc_bytes. Equals to /memory/classes/heap/objects:bytes.
+# TYPE go_memstats_heap_alloc_bytes gauge
+go_memstats_heap_alloc_bytes 9.2991328e+07
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used. Equals to /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_idle_bytes gauge
+go_memstats_heap_idle_bytes 5.361664e+07
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes
+# TYPE go_memstats_heap_inuse_bytes gauge
+go_memstats_heap_inuse_bytes 1.03047168e+08
+# HELP go_memstats_heap_objects Number of currently allocated objects. Equals to /gc/heap/objects:objects.
+# TYPE go_memstats_heap_objects gauge
+go_memstats_heap_objects 773751
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS. Equals to /memory/classes/heap/released:bytes.
+# TYPE go_memstats_heap_released_bytes gauge
+go_memstats_heap_released_bytes 2.0062208e+07
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system. Equals to /memory/classes/heap/objects:bytes + /memory/classes/heap/unused:bytes + /memory/classes/heap/released:bytes + /memory/classes/heap/free:bytes.
+# TYPE go_memstats_heap_sys_bytes gauge
+go_memstats_heap_sys_bytes 1.56663808e+08
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# TYPE go_memstats_last_gc_time_seconds gauge
+go_memstats_last_gc_time_seconds 1.786120655739807e+09
+# HELP go_memstats_mallocs_total Total number of heap objects allocated, both live and gc-ed. Semantically a counter version for go_memstats_heap_objects gauge. Equals to /gc/heap/allocs:objects + /gc/heap/tiny/allocs:objects.
+# TYPE go_memstats_mallocs_total counter
+go_memstats_mallocs_total 1.13901903e+08
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures. Equals to /memory/classes/metadata/mcache/inuse:bytes.
+# TYPE go_memstats_mcache_inuse_bytes gauge
+go_memstats_mcache_inuse_bytes 14496
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system. Equals to /memory/classes/metadata/mcache/inuse:bytes + /memory/classes/metadata/mcache/free:bytes.
+# TYPE go_memstats_mcache_sys_bytes gauge
+go_memstats_mcache_sys_bytes 15704
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures. Equals to /memory/classes/metadata/mspan/inuse:bytes.
+# TYPE go_memstats_mspan_inuse_bytes gauge
+go_memstats_mspan_inuse_bytes 1.51312e+06
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system. Equals to /memory/classes/metadata/mspan/inuse:bytes + /memory/classes/metadata/mspan/free:bytes.
+# TYPE go_memstats_mspan_sys_bytes gauge
+go_memstats_mspan_sys_bytes 2.1216e+06
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place. Equals to /gc/heap/goal:bytes.
+# TYPE go_memstats_next_gc_bytes gauge
+go_memstats_next_gc_bytes 1.26563964e+08
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations. Equals to /memory/classes/other:bytes.
+# TYPE go_memstats_other_sys_bytes gauge
+go_memstats_other_sys_bytes 2.014407e+06
+# HELP go_memstats_stack_inuse_bytes Number of bytes obtained from system for stack allocator in non-CGO environments. Equals to /memory/classes/heap/stacks:bytes.
+# TYPE go_memstats_stack_inuse_bytes gauge
+go_memstats_stack_inuse_bytes 6.914048e+06
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator. Equals to /memory/classes/heap/stacks:bytes + /memory/classes/os-stacks:bytes.
+# TYPE go_memstats_stack_sys_bytes gauge
+go_memstats_stack_sys_bytes 6.914048e+06
+# HELP go_memstats_sys_bytes Number of bytes obtained from system. Equals to /memory/classes/total:byte.
+# TYPE go_memstats_sys_bytes gauge
+go_memstats_sys_bytes 1.75814952e+08
+# HELP go_sched_gomaxprocs_threads The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.
+# TYPE go_sched_gomaxprocs_threads gauge
+go_sched_gomaxprocs_threads 12
+# HELP go_threads Number of OS threads created.
+# TYPE go_threads gauge
+go_threads 50
+# HELP milvus_build_info Build information of milvus
+# TYPE milvus_build_info gauge
+milvus_build_info{built="Fri Jul 10 11:08:25 UTC 2026",git_commit="65db4eaa6e",version="2.6.20"} 1
+# HELP milvus_cgo_active_future_total Total number of active futures.
+# TYPE milvus_cgo_active_future_total gauge
+milvus_cgo_active_future_total{node_id="10"} 0
+# HELP milvus_cgo_cgo_duration_seconds Histogram of cgo call duration in seconds.
+# TYPE milvus_cgo_cgo_duration_seconds histogram
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="1e-08"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="1.0000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="2.5000000000000004e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="5.000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="1e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="9.999999999999999e-06"} 29
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="1.9999999999999998e-05"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="4.9999999999999996e-05"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="9.999999999999999e-05"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="0.00025"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="0.0005"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="0.001"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="0.002"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="0.01"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_destroy",node_id="10",le="+Inf"} 31
+milvus_cgo_cgo_duration_seconds_sum{name="future_destroy",node_id="10"} 0.000168724
+milvus_cgo_cgo_duration_seconds_count{name="future_destroy",node_id="10"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="1e-08"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="1.0000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="2.5000000000000004e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="5.000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="1e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="9.999999999999999e-06"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="1.9999999999999998e-05"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="4.9999999999999996e-05"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="9.999999999999999e-05"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="0.00025"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="0.0005"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="0.001"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="0.002"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="0.01"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_go_register_ready_callback",node_id="10",le="+Inf"} 31
+milvus_cgo_cgo_duration_seconds_sum{name="future_go_register_ready_callback",node_id="10"} 0.0008838739999999999
+milvus_cgo_cgo_duration_seconds_count{name="future_go_register_ready_callback",node_id="10"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="1e-08"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="1.0000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="2.5000000000000004e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="5.000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="1e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="9.999999999999999e-06"} 29
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="1.9999999999999998e-05"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="4.9999999999999996e-05"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="9.999999999999999e-05"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="0.00025"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="0.0005"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="0.001"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="0.002"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="0.01"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="future_leak_and_get",node_id="10",le="+Inf"} 31
+milvus_cgo_cgo_duration_seconds_sum{name="future_leak_and_get",node_id="10"} 0.00020547999999999996
+milvus_cgo_cgo_duration_seconds_count{name="future_leak_and_get",node_id="10"} 31
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="1e-08"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="1.0000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="2.5000000000000004e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="5.000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="1e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="9.999999999999999e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="1.9999999999999998e-05"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="4.9999999999999996e-05"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="9.999999999999999e-05"} 10
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="0.00025"} 28
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="0.0005"} 28
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="0.001"} 29
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="0.002"} 29
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="0.01"} 29
+milvus_cgo_cgo_duration_seconds_bucket{name="search",node_id="10",le="+Inf"} 30
+milvus_cgo_cgo_duration_seconds_sum{name="search",node_id="10"} 0.024591335999999988
+milvus_cgo_cgo_duration_seconds_count{name="search",node_id="10"} 30
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="1e-08"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="1.0000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="2.5000000000000004e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="5.000000000000001e-07"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="1e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="9.999999999999999e-06"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="1.9999999999999998e-05"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="4.9999999999999996e-05"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="9.999999999999999e-05"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="0.00025"} 0
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="0.0005"} 1
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="0.001"} 1
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="0.002"} 1
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="0.01"} 1
+milvus_cgo_cgo_duration_seconds_bucket{name="segment-load",node_id="10",le="+Inf"} 1
+milvus_cgo_cgo_duration_seconds_sum{name="segment-load",node_id="10"} 0.000310446
+milvus_cgo_cgo_duration_seconds_count{name="segment-load",node_id="10"} 1
+# HELP milvus_cgo_cgo_queue_duration_seconds Duration of cgo call in queue.
+# TYPE milvus_cgo_cgo_queue_duration_seconds histogram
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="1e-08"} 0
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="1.0000000000000001e-07"} 6
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="2.5000000000000004e-07"} 53
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="5.000000000000001e-07"} 85
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="1e-06"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="9.999999999999999e-06"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="1.9999999999999998e-05"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="4.9999999999999996e-05"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="9.999999999999999e-05"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="0.00025"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="0.0005"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="0.001"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="0.002"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="0.01"} 124
+milvus_cgo_cgo_queue_duration_seconds_bucket{node_id="10",le="+Inf"} 124
+milvus_cgo_cgo_queue_duration_seconds_sum{node_id="10"} 4.4074999999999994e-05
+milvus_cgo_cgo_queue_duration_seconds_count{node_id="10"} 124
+# HELP milvus_cgo_running_cgo_call_total Total number of running cgo calls.
+# TYPE milvus_cgo_running_cgo_call_total gauge
+milvus_cgo_running_cgo_call_total{node_id="10"} 0
+# HELP milvus_datacoord_channel_checkpoint_unix_seconds channel checkpoint timestamp in unix seconds
+# TYPE milvus_datacoord_channel_checkpoint_unix_seconds gauge
+milvus_datacoord_channel_checkpoint_unix_seconds{channel_name="by-dev-rootcoord-dml_0_468218595528378273v0",node_id="10"} 1.786120644e+09
+# HELP milvus_datacoord_collection_num number of collections
+# TYPE milvus_datacoord_collection_num gauge
+milvus_datacoord_collection_num 1
+# HELP milvus_datacoord_datanode_num number of data nodes
+# TYPE milvus_datacoord_datanode_num gauge
+milvus_datacoord_datanode_num 1
+# HELP milvus_datacoord_gc_run_count garbage collection running count
+# TYPE milvus_datacoord_gc_run_count counter
+milvus_datacoord_gc_run_count{node_id="10"} 3
+# HELP milvus_datacoord_import_jobs the import jobs grouping by state
+# TYPE milvus_datacoord_import_jobs gauge
+milvus_datacoord_import_jobs{import_state="Completed"} 0
+milvus_datacoord_import_jobs{import_state="Failed"} 0
+milvus_datacoord_import_jobs{import_state="Importing"} 0
+milvus_datacoord_import_jobs{import_state="IndexBuilding"} 0
+milvus_datacoord_import_jobs{import_state="Pending"} 0
+milvus_datacoord_import_jobs{import_state="PreImporting"} 0
+milvus_datacoord_import_jobs{import_state="Sorting"} 0
+# HELP milvus_datacoord_import_tasks the import tasks grouping by type and state
+# TYPE milvus_datacoord_import_tasks gauge
+milvus_datacoord_import_tasks{import_state="Completed",task_type="ImportTask"} 0
+milvus_datacoord_import_tasks{import_state="Completed",task_type="PreImportTask"} 0
+milvus_datacoord_import_tasks{import_state="Failed",task_type="ImportTask"} 0
+milvus_datacoord_import_tasks{import_state="Failed",task_type="PreImportTask"} 0
+milvus_datacoord_import_tasks{import_state="InProgress",task_type="ImportTask"} 0
+milvus_datacoord_import_tasks{import_state="InProgress",task_type="PreImportTask"} 0
+milvus_datacoord_import_tasks{import_state="Pending",task_type="ImportTask"} 0
+milvus_datacoord_import_tasks{import_state="Pending",task_type="PreImportTask"} 0
+# HELP milvus_datacoord_index_node_num number of IndexNodes managed by IndexCoord
+# TYPE milvus_datacoord_index_node_num gauge
+milvus_datacoord_index_node_num 1
+# HELP milvus_datacoord_segment_num number of segments
+# TYPE milvus_datacoord_segment_num gauge
+milvus_datacoord_segment_num{segment_is_sorted="sorted",segment_level="L1",segment_state="Dropped",segment_storage_version="2"} 6
+milvus_datacoord_segment_num{segment_is_sorted="sorted",segment_level="L1",segment_state="Flushed",segment_storage_version="2"} 1
+milvus_datacoord_segment_num{segment_is_sorted="unsorted",segment_level="L1",segment_state="Dropped",segment_storage_version="2"} 7
+# HELP milvus_datacoord_stored_binlog_size binlog size of healthy segments
+# TYPE milvus_datacoord_stored_binlog_size gauge
+milvus_datacoord_stored_binlog_size{collection_id="468218595528378273",db_name="default",segment_state="Flushed"} 8.285257e+06
+# HELP milvus_num_node number of nodes and coordinates
+# TYPE milvus_num_node gauge
+milvus_num_node{node_id="10",role_name="datanode"} 1
+milvus_num_node{node_id="10",role_name="mixcoord"} 1
+milvus_num_node{node_id="10",role_name="proxy"} 1
+milvus_num_node{node_id="10",role_name="querynode"} 1
+# HELP milvus_proxy_req_count count of operation executed
+# TYPE milvus_proxy_req_count counter
+milvus_proxy_req_count{collection_name="",db_name="",function_name="Connect",node_id="10",status="success"} 3
+milvus_proxy_req_count{collection_name="",db_name="",function_name="Connect",node_id="10",status="total"} 3
+milvus_proxy_req_count{collection_name="",db_name="",function_name="GetVersion",node_id="10",status="success"} 137
+milvus_proxy_req_count{collection_name="",db_name="",function_name="GetVersion",node_id="10",status="total"} 137
+milvus_proxy_req_count{collection_name="",db_name="default",function_name="ShowCollections",node_id="10",status="success"} 177
+milvus_proxy_req_count{collection_name="",db_name="default",function_name="ShowCollections",node_id="10",status="total"} 177
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="DescribeCollection",node_id="10",status="success"} 352
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="DescribeCollection",node_id="10",status="total"} 352
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="DescribeIndex",node_id="10",status="success"} 78
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="DescribeIndex",node_id="10",status="total"} 78
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="GetCollectionStatistics",node_id="10",status="success"} 39
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="GetCollectionStatistics",node_id="10",status="total"} 39
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="GetLoadState",node_id="10",status="success"} 39
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="GetLoadState",node_id="10",status="total"} 39
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="GetLoadingProgress",node_id="10",status="success"} 1
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="GetLoadingProgress",node_id="10",status="total"} 1
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="LoadCollection",node_id="10",status="success"} 1
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="LoadCollection",node_id="10",status="total"} 1
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="Search",node_id="10",status="success"} 30
+milvus_proxy_req_count{collection_name="demo_docs",db_name="default",function_name="Search",node_id="10",status="total"} 30
+# HELP milvus_proxy_req_latency latency of each request
+# TYPE milvus_proxy_req_latency histogram
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="1"} 175
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="2"} 175
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="4"} 175
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="8"} 175
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="16"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="32"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="64"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="128"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="256"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="512"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="1024"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="2048"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="4096"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="8192"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="16384"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="32768"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="65536"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="131072"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeCollection",node_id="10",le="+Inf"} 176
+milvus_proxy_req_latency_sum{function_name="DescribeCollection",node_id="10"} 9
+milvus_proxy_req_latency_count{function_name="DescribeCollection",node_id="10"} 176
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="1"} 68
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="2"} 73
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="4"} 76
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="8"} 77
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="16"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="32"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="64"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="128"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="256"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="512"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="1024"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="2048"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="4096"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="8192"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="16384"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="32768"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="65536"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="131072"} 78
+milvus_proxy_req_latency_bucket{function_name="DescribeIndex",node_id="10",le="+Inf"} 78
+milvus_proxy_req_latency_sum{function_name="DescribeIndex",node_id="10"} 71
+milvus_proxy_req_latency_count{function_name="DescribeIndex",node_id="10"} 78
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="1"} 31
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="2"} 35
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="4"} 38
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="8"} 38
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="16"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="32"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="64"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="128"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="256"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="512"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="1024"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="2048"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="4096"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="8192"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="16384"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="32768"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="65536"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="131072"} 39
+milvus_proxy_req_latency_bucket{function_name="GetCollectionStatistics",node_id="10",le="+Inf"} 39
+milvus_proxy_req_latency_sum{function_name="GetCollectionStatistics",node_id="10"} 47
+milvus_proxy_req_latency_count{function_name="GetCollectionStatistics",node_id="10"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="1"} 38
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="2"} 38
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="4"} 38
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="8"} 38
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="16"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="32"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="64"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="128"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="256"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="512"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="1024"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="2048"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="4096"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="8192"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="16384"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="32768"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="65536"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="131072"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadState",node_id="10",le="+Inf"} 39
+milvus_proxy_req_latency_sum{function_name="GetLoadState",node_id="10"} 15
+milvus_proxy_req_latency_count{function_name="GetLoadState",node_id="10"} 39
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="1"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="2"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="4"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="8"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="16"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="32"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="64"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="128"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="256"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="512"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="1024"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="2048"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="4096"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="8192"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="16384"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="32768"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="65536"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="131072"} 1
+milvus_proxy_req_latency_bucket{function_name="GetLoadingProgress",node_id="10",le="+Inf"} 1
+milvus_proxy_req_latency_sum{function_name="GetLoadingProgress",node_id="10"} 0
+milvus_proxy_req_latency_count{function_name="GetLoadingProgress",node_id="10"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="1"} 0
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="2"} 0
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="4"} 0
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="8"} 0
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="16"} 0
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="32"} 0
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="64"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="128"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="256"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="512"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="1024"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="2048"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="4096"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="8192"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="16384"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="32768"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="65536"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="131072"} 1
+milvus_proxy_req_latency_bucket{function_name="LoadCollection",node_id="10",le="+Inf"} 1
+milvus_proxy_req_latency_sum{function_name="LoadCollection",node_id="10"} 43
+milvus_proxy_req_latency_count{function_name="LoadCollection",node_id="10"} 1
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="1"} 145
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="2"} 169
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="4"} 175
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="8"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="16"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="32"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="64"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="128"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="256"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="512"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="1024"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="2048"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="4096"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="8192"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="16384"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="32768"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="65536"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="131072"} 177
+milvus_proxy_req_latency_bucket{function_name="ShowCollections",node_id="10",le="+Inf"} 177
+milvus_proxy_req_latency_sum{function_name="ShowCollections",node_id="10"} 192
+milvus_proxy_req_latency_count{function_name="ShowCollections",node_id="10"} 177
+# HELP milvus_proxy_sq_latency latency of search or query successfully
+# TYPE milvus_proxy_sq_latency histogram
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="1"} 8
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="2"} 22
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="4"} 28
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="8"} 28
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="16"} 29
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="32"} 29
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="64"} 29
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="128"} 29
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="256"} 29
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="512"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="1024"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="2048"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="4096"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="8192"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="16384"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="32768"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="65536"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="131072"} 30
+milvus_proxy_sq_latency_bucket{collection_name="demo_docs",db_name="default",node_id="10",query_type="search",le="+Inf"} 30
+milvus_proxy_sq_latency_sum{collection_name="demo_docs",db_name="default",node_id="10",query_type="search"} 460
+milvus_proxy_sq_latency_count{collection_name="demo_docs",db_name="default",node_id="10",query_type="search"} 30
+# HELP milvus_querynode_entity_num number of entities which can be searched/queried, clustered by collection, partition and state
+# TYPE milvus_querynode_entity_num gauge
+milvus_querynode_entity_num{collection_id="468218595528378273",collection_name="demo_docs",db_name="default",node_id="10",segment_state="Growing"} 0
+milvus_querynode_entity_num{collection_id="468218595528378273",collection_name="demo_docs",db_name="default",node_id="10",segment_state="Sealed"} 5000
+# HELP milvus_rootcoord_collection_num number of collections
+# TYPE milvus_rootcoord_collection_num gauge
+milvus_rootcoord_collection_num{db_name="default"} 1
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# TYPE process_cpu_seconds_total counter
+process_cpu_seconds_total 377.96
+# HELP process_open_fds Number of open file descriptors.
+# TYPE process_open_fds gauge
+process_open_fds 77
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# TYPE process_resident_memory_bytes gauge
+process_resident_memory_bytes 8.0289792e+08
+# HELP internal_storage_op_count [cpp]count of persistent data operation
+# TYPE internal_storage_op_count counter
+internal_storage_op_count{persistent_data_op_type="get"} 0
+internal_storage_op_count{persistent_data_op_type="get",status="success"} 4
+internal_storage_op_count{persistent_data_op_type="list",status="fail"} 0
+internal_storage_op_count{persistent_data_op_type="list",status="success"} 1
+internal_storage_op_count{persistent_data_op_type="put",status="fail"} 0
+internal_storage_op_count{persistent_data_op_type="put",status="success"} 0
+internal_storage_op_count{persistent_data_op_type="remove",status="fail"} 0
+internal_storage_op_count{persistent_data_op_type="remove",status="success"} 0
+internal_storage_op_count{persistent_data_op_type="stat",status="fail"} 0
+internal_storage_op_count{persistent_data_op_type="stat",status="success"} 4
+# HELP internal_storage_request_latency [cpp]request latency(ms) on the client side
+# TYPE internal_storage_request_latency histogram
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="1"} 2
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="2"} 3
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="4"} 3
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="8"} 3
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="16"} 3
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="32"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="64"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="128"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="256"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="512"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="1024"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="2048"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="4096"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="8192"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="16384"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="32768"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="65536"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="get",le="+Inf"} 4
+internal_storage_request_latency_sum{persistent_data_op_type="get"} 33
+internal_storage_request_latency_count{persistent_data_op_type="get"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="1"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="2"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="4"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="8"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="16"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="32"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="64"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="128"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="256"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="512"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="1024"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="2048"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="4096"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="8192"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="16384"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="32768"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="65536"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="list",le="+Inf"} 1
+internal_storage_request_latency_sum{persistent_data_op_type="list"} 5
+internal_storage_request_latency_count{persistent_data_op_type="list"} 1
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="1"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="2"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="4"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="8"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="16"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="32"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="64"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="128"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="256"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="512"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="1024"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="2048"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="4096"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="8192"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="16384"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="32768"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="65536"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="put",le="+Inf"} 0
+internal_storage_request_latency_sum{persistent_data_op_type="put"} 0
+internal_storage_request_latency_count{persistent_data_op_type="put"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="1"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="2"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="4"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="8"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="16"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="32"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="64"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="128"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="256"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="512"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="1024"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="2048"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="4096"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="8192"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="16384"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="32768"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="65536"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="remove",le="+Inf"} 0
+internal_storage_request_latency_sum{persistent_data_op_type="remove"} 0
+internal_storage_request_latency_count{persistent_data_op_type="remove"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="1"} 0
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="2"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="4"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="8"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="16"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="32"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="64"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="128"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="256"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="512"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="1024"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="2048"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="4096"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="8192"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="16384"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="32768"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="65536"} 4
+internal_storage_request_latency_bucket{persistent_data_op_type="stat",le="+Inf"} 4
+internal_storage_request_latency_sum{persistent_data_op_type="stat"} 8
+internal_storage_request_latency_count{persistent_data_op_type="stat"} 4

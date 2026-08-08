@@ -11,6 +11,11 @@
 #
 # Compose sets `context: .` with `dockerfile: dashboard/Dockerfile` to match.
 
+# Declared before the first FROM: an ARG used in a FROM line is only visible
+# in that pre-stage scope. The pin lives in .env alongside every other image
+# version, so there is one place to audit them.
+ARG NGINX_VERSION=1.27-alpine
+
 # --- build ----------------------------------------------------------------
 FROM node:22-alpine AS build
 
@@ -32,7 +37,11 @@ COPY dashboard/src ./src
 RUN npm run build
 
 # --- runtime --------------------------------------------------------------
-FROM nginx:1.27-alpine AS runtime
+# Re-declared: an ARG from the pre-FROM block is consumed by the FROM lines and
+# has to be brought back into scope to be used inside a stage. It is not used
+# below, but declaring it keeps the default visible next to the image it pins.
+ARG NGINX_VERSION
+FROM nginx:${NGINX_VERSION} AS runtime
 
 # The stock config would otherwise also listen on :80 and shadow ours.
 RUN rm -f /etc/nginx/conf.d/default.conf

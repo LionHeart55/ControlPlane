@@ -3,8 +3,8 @@
 # Target names are a public contract: the README, the demo script and
 # docs/RELIABILITY.md all refer to them. Do not rename them.
 #
-# At WP-01 every target except fmt/lint is a stub. Each stub names the work
-# package that implements it.
+# Every target is implemented. The work package that produced each group is
+# noted in the section headers below.
 
 SHELL := /bin/bash
 .DEFAULT_GOAL := help
@@ -55,8 +55,11 @@ define require_ruff
 	fi
 endef
 
-.PHONY: help up down destroy logs ps status migrate migrate-down venv seed demo smoke test \
-        chaos-milvus chaos-minio chaos-postgres chaos-recover dashboard fmt lint
+.PHONY: help up down destroy logs ps status migrate migrate-down venv seed demo smoke \
+        test test-integration test-chaos test-all \
+        chaos-milvus chaos-minio chaos-postgres chaos-etcd chaos-pause chaos-network \
+        chaos-recover chaos-status \
+        dashboard dashboard-build dashboard-test fmt lint
 
 help: ## Show this help
 	@echo "Milvus Control Plane — available targets:"
@@ -97,8 +100,8 @@ venv: ## Create the Python 3.12 virtualenv and install dependencies
 	uv venv --python 3.12 $(CP_DIR)/.venv
 	uv pip install --python $(CP_DIR)/.venv/bin/python -e '$(CP_DIR)[dev]'
 
-seed: ## Register the local cluster in the control plane
-	@echo "TODO (WP-03): ./scripts/seed_cluster.sh"
+seed: ## Verify (or create) the local cluster registration
+	./scripts/seed_cluster.sh
 
 # ---------------------------------------------------------------------------
 # Demo and verification  (WP-11, WP-14)
@@ -110,23 +113,44 @@ demo: ## Run the Milvus operations script end to end
 smoke: ## Walk every API endpoint and assert status codes and fields
 	./scripts/smoke_test.sh
 
-test: ## Run the pytest suite
+test: ## Run the unit suite (no infrastructure required)
+	cd $(CP_DIR) && $(PYTEST) app/tests -m 'not integration'
+
+test-integration: ## Run integration tests against a running stack (non-destructive)
+	cd $(CP_DIR) && $(PYTEST) app/tests -m 'integration and not destructive'
+
+test-chaos: ## Run the outage regression test. STOPS AND RESTARTS Milvus.
+	cd $(CP_DIR) && $(PYTEST) app/tests -m 'destructive' -v
+
+test-all: ## Everything, including the destructive drill
 	cd $(CP_DIR) && $(PYTEST) app/tests
 
 # ---------------------------------------------------------------------------
 # Reliability drills  (WP-15)
 # ---------------------------------------------------------------------------
 chaos-milvus: ## Inject: stop Milvus
-	@echo "TODO (WP-15): $(CHAOS) milvus-stop"
+	$(CHAOS) milvus-stop
 
 chaos-minio: ## Inject: stop MinIO (shallow health stays green — the interesting one)
-	@echo "TODO (WP-15): $(CHAOS) minio-stop"
+	$(CHAOS) minio-stop
 
 chaos-postgres: ## Inject: stop Postgres (API must stay up and self-heal)
-	@echo "TODO (WP-15): $(CHAOS) postgres-stop"
+	$(CHAOS) postgres-stop
 
 chaos-recover: ## Restore every injected failure
-	@echo "TODO (WP-15): $(CHAOS) recover-all"
+	$(CHAOS) recover-all
+
+chaos-pause: ## Inject: pause Milvus (hung, not dead). NOTE: kills it past the etcd lease TTL.
+	$(CHAOS) milvus-pause
+
+chaos-etcd: ## Inject: stop etcd
+	$(CHAOS) etcd-stop
+
+chaos-network: ## Inject: partition cp-api from the compose network
+	$(CHAOS) network-cut cp-api
+
+chaos-status: ## Container state, health, networks and the control plane's view
+	$(CHAOS) status
 
 # ---------------------------------------------------------------------------
 # Dashboard  (WP-12)

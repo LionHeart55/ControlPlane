@@ -25,7 +25,13 @@ from __future__ import annotations
 import datetime as dt
 from typing import Any
 
-from app.adapters.registry import get_docker_adapter, get_metrics_adapter, get_milvus_adapter
+from app.adapters.registry import (
+    get_docker_adapter,
+    get_metadata_store_adapter,
+    get_metrics_adapter,
+    get_milvus_adapter,
+    get_object_store_adapter,
+)
 from app.config import Settings, get_settings
 from app.db.base import HealthStatus
 from app.jobs.base import guarded, job_session
@@ -69,20 +75,29 @@ async def run_health_job(settings: Settings | None = None) -> int:
     async with job_session() as session:
         clusters = await ClusterRepository(session).list(limit=100)
         targets = [
-            (c.id, c.name, c.endpoint_uri, c.metrics_uri, c.compose_project) for c in clusters
+            (
+                c.id,
+                c.name,
+                c.endpoint_uri,
+                c.metrics_uri,
+                c.compose_project,
+                c.object_store_endpoint,
+            )
+            for c in clusters
         ]
 
     if not targets:
         log.debug("health_job_no_clusters")
         return 0
 
-    for cluster_id, name, endpoint_uri, metrics_uri, compose_project in targets:
+    for cluster_id, name, endpoint_uri, metrics_uri, compose_project, store_endpoint in targets:
         await check_and_persist(
             cluster_id=cluster_id,
             name=name,
             endpoint_uri=endpoint_uri,
             metrics_uri=metrics_uri,
             compose_project=compose_project,
+            object_store_endpoint=store_endpoint,
             settings=cfg,
         )
     return len(targets)
@@ -96,6 +111,7 @@ async def check_and_persist(
     metrics_uri: str | None,
     compose_project: str | None,
     settings: Settings,
+    object_store_endpoint: str | None = None,
 ) -> tuple[HealthVerdict, HealthSignals]:
     """Probe one cluster, persist the result, emit an event only on transition.
 
@@ -109,6 +125,8 @@ async def check_and_persist(
         milvus=get_milvus_adapter(endpoint_uri, settings),
         docker=get_docker_adapter(settings),
         metrics=get_metrics_adapter(metrics_uri or settings.milvus_metrics_uri, settings),
+        object_store=get_object_store_adapter(object_store_endpoint, settings),
+        metadata_store=get_metadata_store_adapter(settings=settings),
         compose_project=compose_project,
         # The scheduled job is the breaker's half-open driver: it must probe
         # even while the breaker is open, or a recovered Milvus would never be
@@ -146,6 +164,8 @@ async def check_and_persist(
                 "components_error": signals.components_error,
                 "metrics_error": signals.metrics_error,
                 "metrics_ok": signals.metrics_ok,
+                "object_store_error": signals.object_store_error,
+                "metadata_store_error": signals.metadata_store_error,
             },
         )
 

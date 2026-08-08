@@ -10,7 +10,25 @@
 # Usage: scripts/smoke_test.sh [BASE_URL]
 set -Eeuo pipefail
 
-BASE="${1:-${CP_BASE_URL:-http://localhost:8000}}"
+# --fail-fast stops at the first failure, for CI where the first error is the
+# only one worth reading. The default runs everything and prints a tally,
+# because in front of a reviewer the useful output is "63 of 64 passed, here is
+# the one that did not" rather than a single line with no context. Either way
+# the exit status is non-zero if anything failed.
+FAIL_FAST=0
+ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --fail-fast) FAIL_FAST=1 ;;
+        -h|--help)
+            echo "usage: $0 [--fail-fast] [BASE_URL]"
+            echo "  BASE_URL defaults to \$CP_BASE_URL or http://localhost:8000"
+            exit 0 ;;
+        *) ARGS+=("$arg") ;;
+    esac
+done
+
+BASE="${ARGS[0]:-${CP_BASE_URL:-http://localhost:8000}}"
 API="${BASE}/api/v1"
 
 PASS=0
@@ -20,7 +38,16 @@ RED=$'\033[0;31m'; GREEN=$'\033[0;32m'; YELLOW=$'\033[0;33m'; DIM=$'\033[2m'; NC
 command -v jq >/dev/null 2>&1 || { echo "${RED}jq is required${NC}" >&2; exit 2; }
 
 ok()   { PASS=$((PASS+1)); printf '  %sok%s   %s\n' "$GREEN" "$NC" "$1"; }
-bad()  { FAIL=$((FAIL+1)); printf '  %sFAIL%s %s\n' "$RED" "$NC" "$1"; [ -n "${2:-}" ] && printf '       %s%s%s\n' "$DIM" "$2" "$NC"; }
+bad()  {
+    FAIL=$((FAIL+1))
+    printf '  %sFAIL%s %s\n' "$RED" "$NC" "$1"
+    [ -n "${2:-}" ] && printf '       %s%s%s\n' "$DIM" "$2" "$NC"
+    if [ "$FAIL_FAST" -eq 1 ]; then
+        printf '\n%saborting on first failure (--fail-fast)%s\n' "$RED" "$NC"
+        exit 1
+    fi
+    return 0
+}
 note() { printf '  %s--%s   %s\n' "$YELLOW" "$NC" "$1"; }
 section() { printf '\n%s\n' "$1"; }
 

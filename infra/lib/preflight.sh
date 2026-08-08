@@ -110,14 +110,21 @@ check_disk() {
 # and a grep for ":9000->" silently misses it. Inspecting HostPort yields one
 # exact port per binding with no ranges to parse.
 port_owned_by_stack() {
-    local port="$1" ids
+    local port="$1" ids bound
     ids=$(docker ps --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME:-milvus-cp}" \
         -q 2>/dev/null || echo '')
     [ -z "$ids" ] && return 1
+    # Captured before grepping, not piped into it. `grep -q` exits on its first
+    # match and closes the pipe, so `docker inspect` takes a SIGPIPE; with
+    # `set -o pipefail` that non-zero status fails the pipeline and this
+    # reports "not ours" for a port the stack is in fact holding — a phantom
+    # conflict that aborts `up`, intermittently, depending on which process
+    # finishes first.
     # shellcheck disable=SC2086
-    docker inspect \
+    bound=$(docker inspect \
         --format '{{range $p, $conf := .NetworkSettings.Ports}}{{range $conf}}{{println .HostPort}}{{end}}{{end}}' \
-        $ids 2>/dev/null | grep -qx "$port"
+        $ids 2>/dev/null || true)
+    printf '%s\n' "$bound" | grep -qx "$port"
 }
 
 # lsof cannot see listeners owned by other users without root, so netstat is
@@ -127,7 +134,11 @@ port_in_use() {
     if command -v lsof >/dev/null 2>&1; then
         if lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then return 0; fi
     fi
-    if netstat -an 2>/dev/null | grep -qE "[.:]${port}[[:space:]]+.*LISTEN"; then return 0; fi
+    # Captured first: see the SIGPIPE note in port_owned_by_stack. netstat
+    # produces a lot of output, so grep -q almost always exits first here.
+    local listeners
+    listeners=$(netstat -an 2>/dev/null || true)
+    if printf '%s\n' "$listeners" | grep -qE "[.:]${port}[[:space:]]+.*LISTEN"; then return 0; fi
     return 1
 }
 

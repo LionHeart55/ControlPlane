@@ -7,6 +7,8 @@ would still produce `degraded` and silently pass a status-only assertion.
 
 from __future__ import annotations
 
+import pytest
+
 from app.adapters.circuit_breaker import BREAKER_OPEN_CODE
 from app.adapters.docker_client import ComponentStatus as LiveComponent
 from app.adapters.metrics_client import METRICS_UNAVAILABLE
@@ -15,6 +17,7 @@ from app.db.base import DeploymentStatus, HealthStatus
 from app.services.health_service import (
     COMPONENT_NOT_RUNNING,
     DOCKER_UNAVAILABLE,
+    OBJECT_STORE_UNREACHABLE,
     HealthSignals,
     aggregate_status,
 )
@@ -213,6 +216,45 @@ def test_object_store_unreachable_is_degraded_when_probed() -> None:
     assert "object_store_unreachable" in verdict.reasons
 
 
+def test_object_store_is_detected_without_docker() -> None:
+    """The whole reason the direct probe exists.
+
+    With MinIO stopped, `:9091/healthz` returns 200 and `deep_probe` passes
+    completely, so component reconciliation was the only thing that noticed --
+    and that works solely because MinIO happens to be a container this control
+    plane can see. Against S3, or on Kubernetes, `components` is None and the
+    store probe is the last signal standing.
+    """
+    verdict = aggregate_status(
+        HealthSignals(
+            milvus=healthy_probe(),
+            components=None,
+            metrics_ok=True,
+            object_store_reachable=False,
+        ),
+        expected_components=EXPECTED,
+    )
+    assert verdict.status is HealthStatus.DEGRADED
+    assert verdict.error_code == OBJECT_STORE_UNREACHABLE
+    assert verdict.rule == 2, "the store probe must outrank the Docker-derived rules"
+
+
+def test_storage_failure_outranks_a_stopped_container() -> None:
+    """Both fire when MinIO is a container: the storage cause is the useful one."""
+    components = [running(n) for n in EXPECTED if n != "milvus-minio"]
+    verdict = aggregate_status(
+        HealthSignals(
+            milvus=healthy_probe(),
+            components=components,
+            metrics_ok=True,
+            object_store_reachable=False,
+        ),
+        expected_components=EXPECTED,
+    )
+    assert verdict.rule == 2
+    assert verdict.error_code == OBJECT_STORE_UNREACHABLE
+
+
 def test_unprobed_stores_do_not_affect_the_verdict() -> None:
     """None today, because WP-06b is not built. The six rules apply as written."""
     verdict = aggregate_status(
@@ -221,6 +263,147 @@ def test_unprobed_stores_do_not_affect_the_verdict() -> None:
     )
     assert verdict.status is HealthStatus.HEALTHY
     assert verdict.rule == 5
+
+
+# --- the truth table ------------------------------------------------------
+# One row per rule, in rule order, in one place. The individual tests above
+# cover the reasoning; this exists so the coverage is visible at a glance and a
+# newly added rule with no case here is obvious in review.
+#
+#  signals                                            -> rule  status
+TRUTH_TABLE: list[tuple[str, HealthSignals, int, HealthStatus]] = [
+    (
+        "milvus never connected",
+        HealthSignals(
+            milvus=ProbeResult(reachable=False, error_code="MILVUS_UNREACHABLE", checks={}),
+            components=all_running(),
+            metrics_ok=True,
+        ),
+        1,
+        HealthStatus.UNAVAILABLE,
+    ),
+    (
+        "connected, deeper call failed",
+        HealthSignals(
+            milvus=ProbeResult(
+                reachable=False,
+                error_code="MILVUS_RPC_ERROR",
+                checks={"connect": True, "list_collections": False},
+            ),
+            components=all_running(),
+            metrics_ok=True,
+        ),
+        2,
+        HealthStatus.DEGRADED,
+    ),
+    (
+        "object store down, everything else fine",
+        HealthSignals(
+            milvus=healthy_probe(),
+            components=all_running(),
+            metrics_ok=True,
+            object_store_reachable=False,
+        ),
+        2,
+        HealthStatus.DEGRADED,
+    ),
+    (
+        "metadata store down, everything else fine",
+        HealthSignals(
+            milvus=healthy_probe(),
+            components=all_running(),
+            metrics_ok=True,
+            metadata_store_reachable=False,
+        ),
+        2,
+        HealthStatus.DEGRADED,
+    ),
+    (
+        "an expected component is not running",
+        HealthSignals(
+            milvus=healthy_probe(),
+            components=[running(n) for n in EXPECTED if n != "milvus-minio"],
+            metrics_ok=True,
+        ),
+        3,
+        HealthStatus.DEGRADED,
+    ),
+    (
+        "docker socket lost, cluster still serving",
+        HealthSignals(milvus=healthy_probe(), components=None, metrics_ok=True),
+        4,
+        HealthStatus.DEGRADED,
+    ),
+    (
+        "metrics scrape failing, cluster still serving",
+        HealthSignals(milvus=healthy_probe(), components=all_running(), metrics_ok=False),
+        4,
+        HealthStatus.DEGRADED,
+    ),
+    (
+        "everything up",
+        HealthSignals(milvus=healthy_probe(), components=all_running(), metrics_ok=True),
+        5,
+        HealthStatus.HEALTHY,
+    ),
+    (
+        "milvus not probed at all",
+        HealthSignals(milvus=None, components=all_running(), metrics_ok=True),
+        6,
+        HealthStatus.UNKNOWN,
+    ),
+    (
+        "nothing probed at all",
+        HealthSignals(),
+        6,
+        HealthStatus.UNKNOWN,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("description", "signals", "expected_rule", "expected_status"),
+    TRUTH_TABLE,
+    ids=[row[0] for row in TRUTH_TABLE],
+)
+def test_truth_table(
+    description: str,
+    signals: HealthSignals,
+    expected_rule: int,
+    expected_status: HealthStatus,
+) -> None:
+    verdict = aggregate_status(signals, expected_components=EXPECTED)
+    assert verdict.rule == expected_rule, description
+    assert verdict.status is expected_status, description
+
+
+def test_truth_table_covers_every_rule() -> None:
+    """A rule added without a table row fails here rather than going untested."""
+    covered = {row[2] for row in TRUTH_TABLE}
+    assert covered == {1, 2, 3, 4, 5, 6}
+
+
+def test_no_signal_combination_yields_a_false_healthy() -> None:
+    """The invariant behind rule 6, checked exhaustively over the state space.
+
+    Healthy is only ever reachable when Milvus was probed AND answered AND
+    nothing else is known to be broken.
+    """
+    probes = [None, healthy_probe(), ProbeResult(reachable=False, checks={"connect": False})]
+    component_sets = [None, [], all_running()]
+    metrics_states = [None, True, False]
+
+    for probe in probes:
+        for components in component_sets:
+            for metrics_ok in metrics_states:
+                verdict = aggregate_status(
+                    HealthSignals(milvus=probe, components=components, metrics_ok=metrics_ok),
+                    expected_components=EXPECTED,
+                )
+                if verdict.status is HealthStatus.HEALTHY:
+                    assert probe is not None and probe.reachable
+                    assert components == all_running()
+                    assert metrics_ok is not False
 
 
 # --- evidence -------------------------------------------------------------

@@ -8,7 +8,13 @@ from typing import Annotated
 
 from fastapi import APIRouter, Path, Query
 
-from app.adapters.registry import get_docker_adapter, get_metrics_adapter, get_milvus_adapter
+from app.adapters.registry import (
+    get_docker_adapter,
+    get_metadata_store_adapter,
+    get_metrics_adapter,
+    get_milvus_adapter,
+    get_object_store_adapter,
+)
 from app.api.deps import DbDep, SettingsDep
 from app.api.envelope import load_cluster, resolve_live
 from app.db.base import HealthStatus
@@ -96,6 +102,8 @@ async def get_health(
             metrics=get_metrics_adapter(
                 context.metrics_uri or settings.milvus_metrics_uri, settings
             ),
+            object_store=get_object_store_adapter(context.object_store_endpoint, settings),
+            metadata_store=get_metadata_store_adapter(settings=settings),
             compose_project=context.compose_project,
             # Request path honours the breaker; the scheduled job does not.
             force=False,

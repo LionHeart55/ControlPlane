@@ -26,16 +26,21 @@ from collections.abc import Awaitable, Callable, Coroutine
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Path, Query
-from sqlalchemy.exc import InterfaceError, OperationalError
 
-from app.adapters.registry import get_docker_adapter, get_metrics_adapter, get_milvus_adapter
+from app.adapters.registry import (
+    get_docker_adapter,
+    get_metadata_store_adapter,
+    get_metrics_adapter,
+    get_milvus_adapter,
+    get_object_store_adapter,
+)
 from app.api.deps import DbDep, SettingsDep
 from app.api.envelope import LiveOutcome, load_cluster, resolve_live
 from app.api.errors import PostgresUnavailableError
 from app.api.routers.collections import summary_from_snapshot, summary_from_stat
 from app.api.routers.health import to_live_health
 from app.config import Settings
-from app.db.session import get_sessionmaker
+from app.db.session import DATABASE_UNREACHABLE, get_sessionmaker
 from app.logging_conf import get_logger
 from app.repositories import CollectionSnapshotRepository, EventRepository
 from app.schemas.collection import CollectionsLive
@@ -195,6 +200,8 @@ async def _health(context: Any, settings: Settings, cluster_id: uuid.UUID) -> Li
             metrics=get_metrics_adapter(
                 context.metrics_uri or settings.milvus_metrics_uri, settings
             ),
+            object_store=get_object_store_adapter(context.object_store_endpoint, settings),
+            metadata_store=get_metadata_store_adapter(settings=settings),
             compose_project=context.compose_project,
             force=False,
             budget_s=HEALTH_BUDGET_S - 0.5,
@@ -229,7 +236,7 @@ async def _collections(context: Any, settings: Settings, cluster_id: uuid.UUID) 
             async with factory() as db:
                 stored = await CollectionSnapshotRepository(db).latest_per_collection(cluster_id)
                 extra = [summary_from_snapshot(r) for r in stored if r.collection_name not in seen]
-        except (OperationalError, InterfaceError):
+        except DATABASE_UNREACHABLE:
             # Live data is the point of this panel; losing the snapshot merge
             # costs only the "collection has vanished" annotation. Degrading
             # the whole panel because Postgres blinked would be worse.
@@ -313,7 +320,7 @@ async def _events(cluster_id: uuid.UUID) -> LiveOutcome[Any]:
             async with factory() as db:
                 rows = await EventRepository(db).list_events(cluster_id=cluster_id, limit=20)
                 return [EventRead.model_validate(r) for r in rows]
-        except (OperationalError, InterfaceError) as exc:
+        except DATABASE_UNREACHABLE as exc:
             # Translate so resolve_live renders a proper degradation section
             # with POSTGRES_UNAVAILABLE, rather than letting it escape and be
             # reported as an internal error.

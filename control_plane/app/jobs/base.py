@@ -22,11 +22,11 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from typing import Any, TypeVar
 
-from sqlalchemy.exc import DBAPIError, InterfaceError, OperationalError
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.errors import PostgresUnavailableError
-from app.db.session import get_sessionmaker
+from app.db.session import DATABASE_UNREACHABLE, get_sessionmaker
 from app.logging_conf import get_logger
 
 log = get_logger("jobs")
@@ -36,11 +36,14 @@ T = TypeVar("T")
 # Deliberately narrow. Catching DBAPIError wholesale would also swallow
 # IntegrityError and ProgrammingError -- real bugs that must not be mistaken
 # for "Postgres is down" and quietly retried forever.
+#
+# DATABASE_UNREACHABLE is shared with the API handlers so the two cannot drift.
+# It includes socket.gaierror, which is what a stopped container actually
+# produces from inside the compose network: Docker drops the DNS record, so the
+# failure is name resolution rather than a refused connection.
 POSTGRES_DOWN: tuple[type[BaseException], ...] = (
-    OperationalError,
-    InterfaceError,
+    *DATABASE_UNREACHABLE,
     PostgresUnavailableError,
-    ConnectionRefusedError,
 )
 
 

@@ -14,13 +14,14 @@ Compose. To run the API or Alembic from your host, override the endpoints:
 
 from __future__ import annotations
 
+import json
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlparse
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Repository root: .../control_plane/app/config.py -> up three levels.
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -57,8 +58,18 @@ class Settings(BaseSettings):
     minio_root_user: str = "minioadmin"
     minio_root_password: str = "minioadmin"
     minio_bucket: str = "milvus-bucket"
-    # Reachable from inside cp-net; the object-store probe (WP-06b) uses this.
+    # Reachable from inside cp-net; the object-store probe uses this.
     minio_endpoint: str = "milvus-minio:9000"
+    # Required to sign the S3 probe request. MINIO_REGION was already in .env
+    # but had no field here, so extra="ignore" silently dropped it and the
+    # signature would have been computed against the wrong scope.
+    minio_region: str = "us-east-1"
+
+    # --- metadata store (etcd) -------------------------------------------
+    # Milvus's own metadata store. Probed directly because Milvus keeps
+    # answering /healthz for ~26s after etcd dies and then exits outright --
+    # see docs/RELIABILITY.md scenario E.
+    etcd_endpoint: str = "milvus-etcd:2379"
 
     # --- control-plane database ------------------------------------------
     postgres_user: str = "controlplane"
@@ -87,7 +98,13 @@ class Settings(BaseSettings):
     # a dashboard that shows an outage and one that shows nothing. Override with
     # CP_EXPECTED_COMPONENTS as a comma-separated list; add cp-api and
     # cp-dashboard once the app tier is deployed (WP-13).
-    cp_expected_components: list[str] = Field(
+    # NoDecode is load-bearing. pydantic-settings JSON-decodes complex types in
+    # the *source* layer, before any field validator runs, so a plain
+    # CP_EXPECTED_COMPONENTS=a,b,c raised SettingsError at import time and the
+    # API could not start at all. NoDecode suppresses that decode and hands the
+    # raw string to _split_components below, which accepts both the
+    # comma-separated form (natural in .env and in compose) and a JSON list.
+    cp_expected_components: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: [
             "milvus-etcd",
             "milvus-minio",
@@ -113,14 +130,21 @@ class Settings(BaseSettings):
     @field_validator("cp_expected_components", mode="before")
     @classmethod
     def _split_components(cls, v: object) -> object:
-        """Accept a comma-separated string as well as a JSON list.
+        """Accept `a,b,c` as well as a JSON list.
 
-        pydantic-settings parses complex types as JSON, so a plain
-        CP_EXPECTED_COMPONENTS=a,b in .env would otherwise fail to load.
+        Reached only because the field is annotated NoDecode; see the comment
+        there. The comma form is the one people actually write in .env and in a
+        compose `environment:` block, so it has to work.
         """
-        if isinstance(v, str) and not v.strip().startswith("["):
-            return [item.strip() for item in v.split(",") if item.strip()]
-        return v
+        if not isinstance(v, str):
+            return v
+        text = v.strip()
+        if text.startswith("["):
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"not valid JSON: {text!r}") from exc
+        return [item.strip() for item in text.split(",") if item.strip()]
 
     @field_validator("milvus_uri", "milvus_metrics_uri")
     @classmethod

@@ -1,8 +1,92 @@
 # Architecture
 
-> Component responsibilities, the degradation envelope, the data model and the
-> Docker-socket security trade-off are written up in WP-16. The sections below
-> are recorded as their work packages land, while the evidence is fresh.
+> Component responsibilities, the degradation envelope and the data model are
+> written up in WP-16. The sections below are recorded as their work packages
+> land, while the evidence is fresh.
+
+## The Docker socket mount: a deliberate security trade-off
+
+`cp-api` mounts the host's Docker socket:
+
+```yaml
+volumes:
+  - /var/run/docker.sock:/var/run/docker.sock:ro
+```
+
+**This grants root-equivalent access to the host.** That is not an overstatement
+and the `:ro` flag does not change it.
+
+### Why `:ro` is not a security control
+
+`:ro` makes the *file* read-only. It says nothing about what may be sent over
+it. The Docker socket is a full control API, and reads and writes both travel
+as HTTP requests over the same Unix socket — so `:ro` does not prevent a single
+API call. Anything that can talk to this socket can:
+
+- start a container with `--privileged`, or with `/` bind-mounted, and read or
+  write any file on the host;
+- add itself to `/etc/sudoers` or drop a key in `root`'s `authorized_keys`;
+- read every environment variable and secret of every other container.
+
+There is no meaningful privilege boundary between "can reach the Docker socket"
+and "is root on the host". Running the API as a non-root user (uid 10001, see
+`control_plane/Dockerfile`) is worth doing and is done, but it does not close
+this: the privilege comes from the socket, not from the process's own uid.
+
+### Why it is accepted here
+
+The control plane has to report container state — `running`, `exited`, `missing`
+— and tail container logs. On a single-tenant local demo, the socket is the
+direct way to do that, the host is the developer's own machine, and the only
+code that can reach the socket is code they already ran.
+
+The exposure is narrowed, if not removed:
+
+- the adapter is **read-only in practice**: it calls `containers.list`,
+  `containers.get` and `container.logs`, and never creates, starts, stops or
+  execs anything;
+- component names are checked against an **allowlist inside the adapter**, not
+  merely in the router, so a request parameter can never reach a container
+  lookup;
+- the socket path is configurable via `DOCKER_SOCKET`, so it can be pointed at a
+  proxy rather than the real socket;
+- an unreachable socket **degrades rather than fails** — the control plane keeps
+  working without container visibility, so removing the mount is a supported
+  configuration, not a breakage.
+
+### What production would do instead
+
+1. **A socket proxy.** Put [`docker-socket-proxy`][proxy] in front of it and
+   allow only `GET /containers/json`, `GET /containers/{id}/json` and
+   `GET /containers/{id}/logs`. The API then talks to the proxy over the
+   network and never sees the socket. This is the smallest change with the
+   largest reduction in blast radius, and it is what I would do first.
+2. **The Docker API over mTLS.** Expose the daemon on a TLS port with client
+   certificates and set `DOCKER_HOST`. Removes the socket mount entirely, at
+   the cost of certificate management. Still grants full API access unless
+   combined with (1).
+3. **On Kubernetes, no socket at all.** The equivalent adapter uses the
+   Kubernetes API with a ServiceAccount bound to a Role granting only
+   `get`/`list`/`watch` on `pods` and `get` on `pods/log`, namespace-scoped.
+   This is genuinely least-privilege, and it is the reason the Docker adapter
+   sits behind the `ComponentRuntime` interface rather than being called
+   directly: swapping in a `KubernetesAdapter` selected by
+   `clusters.deployment_type` is a new file, not a rewrite.
+
+[proxy]: https://github.com/Tecnativa/docker-socket-proxy
+
+### Other limitations of this build, stated plainly
+
+Matching honesty about the rest of the posture, all acceptable for a local demo
+and none acceptable in production:
+
+| Limitation | Production answer |
+|---|---|
+| No authentication or authorisation on the API | OIDC/JWT at an ingress, plus per-route scopes |
+| Default credentials in `.env` (`minioadmin`, `controlplane`) | A secrets manager; no credentials in the repo |
+| No TLS on any endpoint | TLS terminated at the ingress; internal mTLS |
+| CORS not restricted | Same-origin only, which nginx already provides |
+| Single-tenant: any caller sees every cluster | Tenant scoping on `clusters` and every query |
 
 ## Metrics: how the allowlist was chosen
 

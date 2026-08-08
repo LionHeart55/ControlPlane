@@ -42,12 +42,23 @@ down", so a stable status through the whole outage is required, not incidental.
 (The scheduled health job probes with `force=True` and never sees this; the
 request path does.)
 
-**Object store and metadata store.** `HealthSignals` carries
-`object_store_reachable` / `metadata_store_reachable` because `health_checks`
-stores them, but nothing populates them until WP-06b adds the MinIO and etcd
-probes. They are `None` today, meaning "not probed", which is deliberately
-distinct from `False` ("probed, and down"). Only an explicit `False` affects the
-verdict, so with WP-06b unbuilt the six rules above apply exactly as written.
+**Object store and metadata store (rule 2b).** These are probed directly, and
+they exist because the reliability drills proved nothing else catches them. With
+MinIO stopped, Milvus's `:9091/healthz` returned 200 *and* `deep_probe` passed
+completely -- connect, `list_collections` and `describe_collection` are all
+answered from etcd metadata and never touch object storage. The only thing that
+noticed was component reconciliation seeing the container exit, which works
+solely because MinIO happens to be a container this control plane can see;
+against S3, or on Kubernetes, that signal disappears too.
+
+So a failing storage dependency is evaluated *before* rule 3: losing the object
+store breaks Milvus's data path, which is more serious than a sibling container
+being down, and it must not depend on Docker to be noticed.
+
+`None` still means "not probed" and is deliberately distinct from `False`
+("probed, and down"). Only an explicit `False` changes the verdict, so a
+deployment that configures no store probes behaves exactly as the six numbered
+rules describe.
 """
 
 from __future__ import annotations
@@ -60,8 +71,10 @@ from typing import Any
 from app.adapters.circuit_breaker import BREAKER_OPEN_CODE
 from app.adapters.docker_client import ComponentRuntime
 from app.adapters.docker_client import ComponentStatus as LiveComponent
+from app.adapters.etcd_client import MetadataStoreAdapter
 from app.adapters.metrics_client import METRICS_UNAVAILABLE, MetricsAdapter
 from app.adapters.milvus_client import MilvusAdapter, ProbeResult
+from app.adapters.minio_client import ObjectStoreAdapter
 from app.api.errors import DependencyUnavailableError
 from app.db.base import DeploymentStatus, HealthStatus
 from app.logging_conf import get_logger
@@ -101,9 +114,11 @@ class HealthSignals:
     # None => not probed this cycle; False => scrape failed (rule 4).
     metrics_ok: bool | None = None
     metrics_error: str | None = None
-    # Populated by WP-06b. None today.
+    # Direct probes of Milvus's own storage dependencies. None => not probed.
     object_store_reachable: bool | None = None
+    object_store_error: str | None = None
     metadata_store_reachable: bool | None = None
+    metadata_store_error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -191,10 +206,11 @@ def aggregate_status(
             checks=checks,
         )
 
-    # --- Rule 2b (WP-06b seam): a Milvus dependency is down --------------
+    # --- Rule 2b: a storage dependency of Milvus is down -----------------
     # Only an explicit False counts. Ordered ahead of rule 3 because losing the
     # object store breaks the data path itself, which is more serious than a
-    # sibling container being down.
+    # sibling container being down -- and because, unlike rule 3, this does not
+    # need Docker to notice.
     store_reasons: list[str] = []
     if signals.object_store_reachable is False:
         store_reasons.append("object_store_unreachable")
@@ -272,6 +288,8 @@ async def collect_signals(
     milvus: MilvusAdapter,
     docker: ComponentRuntime | None = None,
     metrics: MetricsAdapter | None = None,
+    object_store: ObjectStoreAdapter | None = None,
+    metadata_store: MetadataStoreAdapter | None = None,
     compose_project: str | None = None,
     force: bool = False,
     budget_s: float = 10.0,
@@ -309,12 +327,27 @@ async def collect_signals(
             return False, f"{type(exc).__name__}: {exc}"
         return ok, None if ok else "metrics endpoint unreachable"
 
+    async def probe_store(
+        adapter: ObjectStoreAdapter | MetadataStoreAdapter | None,
+    ) -> tuple[bool | None, str | None]:
+        # None means "not configured, so not probed" -- distinct from False,
+        # which means "probed and down". Only False affects the verdict.
+        if adapter is None:
+            return None, None
+        try:
+            result = await adapter.probe()
+        except Exception as exc:
+            return False, f"{type(exc).__name__}: {exc}"
+        return result.reachable, result.error_message
+
     try:
-        probe, components, metrics_result = await asyncio.wait_for(
+        probe, components, metrics_result, store_result, meta_result = await asyncio.wait_for(
             asyncio.gather(
                 probe_milvus(),
                 probe_components(),
                 probe_metrics(),
+                probe_store(object_store),
+                probe_store(metadata_store),
                 return_exceptions=True,
             ),
             timeout=budget_s,
@@ -347,13 +380,28 @@ async def collect_signals(
     else:
         metrics_ok, metrics_error = metrics_result
 
+    store_ok, store_error = _unpack_store(store_result)
+    meta_ok, meta_error = _unpack_store(meta_result)
+
     return HealthSignals(
         milvus=milvus_result,
         components=component_list,
         components_error=components_error,
         metrics_ok=metrics_ok,
         metrics_error=metrics_error,
+        object_store_reachable=store_ok,
+        object_store_error=store_error,
+        metadata_store_reachable=meta_ok,
+        metadata_store_error=meta_error,
     )
+
+
+def _unpack_store(result: Any) -> tuple[bool | None, str | None]:
+    """A probe that raised is a down dependency, not an unprobed one."""
+    if isinstance(result, BaseException):
+        return False, f"{type(result).__name__}: {result}"
+    ok, error = result
+    return ok, error
 
 
 def is_breaker_short_circuit(verdict: HealthVerdict) -> bool:

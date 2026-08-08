@@ -177,9 +177,114 @@ services:
       retries: 10
 
   # -------------------------------------------------------------------------
-  # App tier — "app" profile. cp-migrate and cp-api are added by WP-13.
+  # App tier — "app" profile.
+  #
+  # Service names are cp-* here, unlike the infra tier's short names, because
+  # deploy.sh addresses cp-migrate by service name and the container names must
+  # match CP_EXPECTED_COMPONENTS either way.
   # -------------------------------------------------------------------------
-  dashboard:
+  cp-migrate:
+    container_name: cp-migrate
+    profiles: ["app"]
+    build:
+      context: ./control_plane
+    image: milvus-cp/api:${CP_IMAGE_TAG:-0.1.0}
+    # One-shot. Migrations deliberately do NOT run from the API entrypoint:
+    # with more than one replica every one of them would race on the
+    # alembic_version table, and the loser either deadlocks or half-applies a
+    # revision. A separate service that must exit 0 before the API starts makes
+    # the ordering explicit and gives a clean failure if a migration is broken.
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+    networks: [cp-net]
+    # Deliberately NOT labelled com.milvus-cp.component. A one-shot that has
+    # exited 0 is a completed deploy step, not a component of the running
+    # system; labelling it would put a permanent red "exited" row in the
+    # components table that reads as a fault every time someone looks.
+
+  cp-api:
+    container_name: cp-api
+    profiles: ["app"]
+    build:
+      context: ./control_plane
+    image: milvus-cp/api:${CP_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      cp-migrate:
+        # The API starts only once migrations have exited 0. A failed migration
+        # therefore stops the API from starting at all, instead of letting it
+        # come up and fail every query against a half-migrated schema.
+        condition: service_completed_successfully
+    environment:
+      # Container-network endpoints, not the host ones. These are the values
+      # in .env precisely because that is where the API normally runs; running
+      # it on the host for debugging needs the overrides documented in
+      # app/config.py.
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_HOST: ${POSTGRES_HOST}
+      POSTGRES_PORT: ${POSTGRES_PORT}
+      MILVUS_URI: ${MILVUS_URI}
+      MILVUS_METRICS_URI: ${MILVUS_METRICS_URI}
+      MILVUS_CONNECT_TIMEOUT_S: ${MILVUS_CONNECT_TIMEOUT_S}
+      MILVUS_RPC_TIMEOUT_S: ${MILVUS_RPC_TIMEOUT_S}
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-milvus-minio:9000}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      DOCKER_SOCKET: ${DOCKER_SOCKET:-/var/run/docker.sock}
+      CP_API_PORT: ${CP_API_PORT}
+      CP_LOG_LEVEL: ${CP_LOG_LEVEL}
+      CP_HEALTH_INTERVAL_S: ${CP_HEALTH_INTERVAL_S}
+      CP_SNAPSHOT_INTERVAL_S: ${CP_SNAPSHOT_INTERVAL_S}
+      CP_CACHE_TTL_S: ${CP_CACHE_TTL_S}
+      CP_BREAKER_FAIL_MAX: ${CP_BREAKER_FAIL_MAX}
+      CP_BREAKER_RESET_S: ${CP_BREAKER_RESET_S}
+      CP_RETENTION_DAYS: ${CP_RETENTION_DAYS}
+      COMPOSE_PROJECT_NAME: ${COMPOSE_PROJECT_NAME}
+      # The app tier is part of the deployment the control plane watches, so
+      # cp-api and cp-dashboard join the expected set. A component on this list
+      # with no container is reported state="missing" rather than omitted.
+      CP_EXPECTED_COMPONENTS: ${CP_EXPECTED_COMPONENTS:-milvus-etcd,milvus-minio,milvus-standalone,cp-postgres,cp-api,cp-dashboard}
+    ports:
+      - "${CP_API_PORT:-8000}:8000"
+    volumes:
+      # SECURITY TRADE-OFF, documented in docs/ARCHITECTURE.md.
+      # `:ro` limits what the Docker *API* client can be asked to do only in
+      # the sense that the file is opened read-only — it is NOT a security
+      # boundary. Anything that can talk to this socket can start a privileged
+      # container and own the host. Accepted for a local single-tenant demo;
+      # in production this becomes the Docker API over mTLS, or on Kubernetes
+      # a ServiceAccount bound to a read-only Role.
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock:ro
+    # The image runs as uid 10001, and the socket is mode 0660 owned by root,
+    # so the container needs the socket's GROUP to read it at all. The correct
+    # GID is platform-dependent — 0 under Docker Desktop, the host `docker`
+    # group (often 999) on Linux — so deploy.sh resolves and exports it.
+    # The default below is right for Docker Desktop; on Linux set DOCKER_GID
+    # in .env, or use deploy.sh which works it out for you.
+    group_add:
+      - "${DOCKER_GID:-0}"
+    networks: [cp-net]
+    labels:
+      com.milvus-cp.component: cp-api
+    # HEALTHCHECK is defined in control_plane/Dockerfile and hits /healthz,
+    # which touches no dependency: a Milvus or Postgres outage must never make
+    # the API look unhealthy and get it restarted.
+
+  cp-dashboard:
     container_name: cp-dashboard
     profiles: ["app"]
     build:
@@ -188,7 +293,18 @@ services:
       # itself. Same reason the Dockerfile is named explicitly.
       context: .
       dockerfile: dashboard/Dockerfile
+      args:
+        NGINX_VERSION: ${NGINX_VERSION:-1.27-alpine}
     image: milvus-cp/dashboard:${DASHBOARD_IMAGE_TAG:-0.1.0}
+    restart: unless-stopped
+    depends_on:
+      cp-api:
+        # Required, not just tidy: nginx resolves `cp-api` in proxy_pass at
+        # config-load time, so it refuses to start at all if the name does not
+        # resolve yet. service_started is enough — nginx only needs DNS, and
+        # waiting for healthy would delay the dashboard behind the API's
+        # 20s start period for no benefit.
+        condition: service_started
     ports:
       - "${DASHBOARD_PORT:-8080}:80"
     networks: [cp-net]
@@ -202,10 +318,6 @@ services:
       timeout: 3s
       start_period: 5s
       retries: 3
-    # NOTE: nginx proxies /api/ to cp-api:8000, which WP-13 adds. Until then
-    # the SPA renders and its API calls return 502 — which the dashboard shows
-    # as an API_UNREACHABLE banner rather than a blank page. No depends_on
-    # yet, because naming a service that does not exist fails `compose config`.
 
 networks:
   cp-net:

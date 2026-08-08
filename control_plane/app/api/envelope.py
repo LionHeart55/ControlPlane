@@ -34,13 +34,13 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.cache import LastKnownGoodCache
 from app.adapters.registry import get_cluster_cache, get_live_cache
 from app.api.errors import DependencyUnavailableError, NotFoundError, PostgresUnavailableError
 from app.db.base import DeploymentStatus
+from app.db.session import DATABASE_UNREACHABLE
 from app.logging_conf import get_logger
 from app.repositories import ClusterRepository
 from app.schemas.cluster import ClusterRead
@@ -179,6 +179,7 @@ class ClusterContext:
     read: ClusterRead | None
     endpoint_uri: str
     metrics_uri: str | None
+    object_store_endpoint: str | None
     compose_project: str | None
     name: str
     postgres_available: bool
@@ -206,7 +207,7 @@ async def load_cluster(session: AsyncSession, cluster_id: uuid.UUID) -> ClusterC
     cache = get_cluster_cache()
     try:
         cluster = await ClusterRepository(session).get(cluster_id)
-    except (OperationalError, InterfaceError) as exc:
+    except DATABASE_UNREACHABLE as exc:
         entry = cache.get_stale(cluster_id, "cluster")
         if entry is None:
             raise PostgresUnavailableError() from exc
@@ -221,6 +222,7 @@ async def load_cluster(session: AsyncSession, cluster_id: uuid.UUID) -> ClusterC
             read=None,
             endpoint_uri=cached["endpoint_uri"],
             metrics_uri=cached.get("metrics_uri"),
+            object_store_endpoint=cached.get("object_store_endpoint"),
             compose_project=cached.get("compose_project"),
             name=cached.get("name", str(cluster_id)),
             postgres_available=False,
@@ -238,6 +240,7 @@ async def load_cluster(session: AsyncSession, cluster_id: uuid.UUID) -> ClusterC
             "name": cluster.name,
             "endpoint_uri": cluster.endpoint_uri,
             "metrics_uri": cluster.metrics_uri,
+            "object_store_endpoint": cluster.object_store_endpoint,
             "compose_project": cluster.compose_project,
         },
     )
@@ -246,6 +249,7 @@ async def load_cluster(session: AsyncSession, cluster_id: uuid.UUID) -> ClusterC
         read=ClusterRead.model_validate(cluster),
         endpoint_uri=cluster.endpoint_uri,
         metrics_uri=cluster.metrics_uri,
+        object_store_endpoint=cluster.object_store_endpoint,
         compose_project=cluster.compose_project,
         name=cluster.name,
         postgres_available=True,

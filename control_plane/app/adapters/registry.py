@@ -19,12 +19,16 @@ from __future__ import annotations
 from app.adapters.cache import LastKnownGoodCache
 from app.adapters.circuit_breaker import CircuitBreaker, get_breaker
 from app.adapters.docker_client import DockerComponentAdapter
+from app.adapters.etcd_client import MetadataStoreAdapter
 from app.adapters.metrics_client import MetricsAdapter
 from app.adapters.milvus_client import MilvusAdapter
+from app.adapters.minio_client import ObjectStoreAdapter
 from app.config import Settings, get_settings
 
 _milvus: dict[str, MilvusAdapter] = {}
 _metrics: dict[str, MetricsAdapter] = {}
+_object_store: dict[str, ObjectStoreAdapter] = {}
+_metadata_store: dict[str, MetadataStoreAdapter] = {}
 _docker: DockerComponentAdapter | None = None
 _live_cache: LastKnownGoodCache | None = None
 _cluster_cache: LastKnownGoodCache | None = None
@@ -99,6 +103,26 @@ def get_metrics_adapter(uri: str | None = None, settings: Settings | None = None
     return _metrics[endpoint]
 
 
+def get_object_store_adapter(
+    endpoint: str | None = None, settings: Settings | None = None
+) -> ObjectStoreAdapter:
+    cfg = settings or get_settings()
+    key = endpoint or cfg.minio_endpoint
+    if key not in _object_store:
+        _object_store[key] = ObjectStoreAdapter(endpoint=key, settings=cfg)
+    return _object_store[key]
+
+
+def get_metadata_store_adapter(
+    endpoint: str | None = None, settings: Settings | None = None
+) -> MetadataStoreAdapter:
+    cfg = settings or get_settings()
+    key = endpoint or cfg.etcd_endpoint
+    if key not in _metadata_store:
+        _metadata_store[key] = MetadataStoreAdapter(endpoint=key, settings=cfg)
+    return _metadata_store[key]
+
+
 def get_docker_adapter(settings: Settings | None = None) -> DockerComponentAdapter:
     """Single Docker adapter: there is one socket regardless of cluster count."""
     global _docker
@@ -124,6 +148,12 @@ async def close_all() -> None:
     for metrics in list(_metrics.values()):
         await metrics.close()
     _metrics.clear()
+    for store in list(_object_store.values()):
+        await store.close()
+    _object_store.clear()
+    for meta in list(_metadata_store.values()):
+        await meta.close()
+    _metadata_store.clear()
     if _docker is not None:
         await _docker.close()
     _docker = None

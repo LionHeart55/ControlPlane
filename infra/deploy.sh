@@ -46,6 +46,40 @@ load_env() {
         . "${REPO_ROOT}/.env"
         set +a
     fi
+    resolve_docker_gid
+}
+
+# cp-api runs as a non-root user (uid 10001), so it needs the Docker socket's
+# GROUP to read it -- the socket is mode 0660 and owned by root. Without this
+# the components panel is permanently dark with DOCKER_UNAVAILABLE, which
+# degrades correctly but is still a dead feature.
+#
+# The right GID is platform-dependent and cannot be a fixed constant:
+#
+#   * Linux — the bind mount preserves the host's ownership, so the socket
+#     inside the container carries the host `docker` group, typically 999 or
+#     998 depending on distro.
+#   * macOS/Windows — Docker Desktop proxies the socket through its VM and
+#     presents it as root:root inside the container, so the correct value is 0.
+#     Reading the HOST socket's gid there gives the wrong answer entirely: it
+#     is a symlink into the user's home directory owned by that user.
+#
+# Adding group 0 grants no meaningful privilege beyond what the socket itself
+# already confers -- see the security note in docs/ARCHITECTURE.md, which is
+# blunt that this mount is root-equivalent regardless.
+resolve_docker_gid() {
+    if [ -n "${DOCKER_GID:-}" ]; then
+        export DOCKER_GID
+        return 0
+    fi
+    local sock="${DOCKER_SOCKET:-/var/run/docker.sock}"
+    case "$(uname -s)" in
+        Darwin|MINGW*|MSYS*|CYGWIN*)
+            DOCKER_GID=0 ;;
+        *)
+            DOCKER_GID=$(stat -c '%g' "$sock" 2>/dev/null || echo 0) ;;
+    esac
+    export DOCKER_GID
 }
 
 # Compose wrapper. --project-directory pins the project root so that relative
@@ -183,10 +217,32 @@ create_minio_bucket() {
 # entrypoint: concurrent replicas would race on the alembic_version table.
 run_migrations() {
     local versions_dir="${REPO_ROOT}/control_plane/migrations/versions"
+    local profile="${1:-all}"
 
-    if dc config --services 2>/dev/null | grep -qx 'cp-migrate'; then
+    # Two separate traps here, both of which silently sent this down the
+    # host-interpreter path below — which happens to work on a developer
+    # machine with a venv and fails on a clean one.
+    #
+    # 1. The profile flags are REQUIRED: cp-migrate lives in the "app" profile,
+    #    so a bare `dc config --services` does not list it at all.
+    # 2. The output must be captured BEFORE grepping. `grep -q` exits the
+    #    instant it matches, which closes the pipe and hands `docker compose`
+    #    a SIGPIPE; under `set -o pipefail` that non-zero status fails the whole
+    #    pipeline and the `if` evaluates false even though the match succeeded.
+    #    It is a race, so it appeared to work whenever compose happened to
+    #    finish writing first — including under `bash -x`, which is exactly
+    #    when you would be looking for it.
+    local services
+    # shellcheck disable=SC2046
+    services=$(dc $(profile_args "$profile") config --services 2>/dev/null || true)
+
+    if printf '%s\n' "$services" | grep -qx 'cp-migrate'; then
         info "running migrations via the cp-migrate one-shot service"
-        dc run --rm cp-migrate
+        # `up` rather than `run`: the service already ran as cp-api's
+        # dependency, so this re-applies head idempotently and, importantly,
+        # surfaces a non-zero exit if a revision fails.
+        # shellcheck disable=SC2046
+        dc $(profile_args "$profile") run --rm cp-migrate
         ok "migrations applied"
         return 0
     fi
@@ -224,12 +280,19 @@ run_migrations() {
 }
 
 run_seed() {
+    local profile="${1:-all}"
     local seed="${REPO_ROOT}/scripts/seed_cluster.sh"
+
+    # Without the app tier there is no API to register anything against.
+    if [ "$profile" != "all" ]; then
+        info "skipping cluster registration — the API is not running (--profile infra)"
+        return 0
+    fi
     if [ ! -x "$seed" ]; then
         warn "skipping seed — ${seed} not executable"
         return 0
     fi
-    info "seeding cluster registration"
+    info "verifying cluster registration"
     "$seed" || warn "seed script reported a problem; continuing"
 }
 
@@ -334,8 +397,8 @@ cmd_up() {
 
     banner "Provisioning"
     create_minio_bucket
-    run_migrations
-    run_seed
+    run_migrations "$profile"
+    run_seed "$profile"
 
     print_endpoints
     ok "stack is up"

@@ -15,6 +15,7 @@ all -- and it yields 503.
 from __future__ import annotations
 
 import datetime as dt
+import socket
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -203,6 +204,33 @@ async def dependency_unavailable_handler(request: Request, exc: Exception) -> JS
     )
 
 
+async def unreachable_database_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Map a raw socket failure reaching for PostgreSQL onto 503.
+
+    Registered for `socket.gaierror` and `ConnectionError` because those escape
+    SQLAlchemy entirely -- a name-resolution failure inside asyncpg's connect is
+    not a DBAPI error, so it is never wrapped, and without this it surfaced as a
+    500 INTERNAL_ERROR on every metadata route the moment cp-postgres stopped.
+
+    Safe to attribute to PostgreSQL: every other outbound dependency (Milvus,
+    Docker, the metrics endpoint) has an adapter that classifies its own socket
+    errors before they can get this far.
+    """
+    log.warning(
+        "postgres_socket_error",
+        path=request.url.path,
+        error=f"{type(exc).__name__}: {exc}"[:200],
+    )
+    return JSONResponse(
+        status_code=503,
+        content=error_body(
+            "POSTGRES_UNAVAILABLE",
+            "control-plane database is unreachable",
+            {"dependency": "postgres", "cause": type(exc).__name__},
+        ),
+    )
+
+
 async def sqlalchemy_error_handler(request: Request, exc: Exception) -> JSONResponse:
     """Map a dead database connection onto POSTGRES_UNAVAILABLE.
 
@@ -280,4 +308,8 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(SQLAlchemyError, sqlalchemy_error_handler)
     app.add_exception_handler(DBAPIError, sqlalchemy_error_handler)
+    # Before the catch-all: these are raw socket errors that never reach
+    # SQLAlchemy's exception wrapping. See unreachable_database_handler.
+    app.add_exception_handler(socket.gaierror, unreachable_database_handler)
+    app.add_exception_handler(ConnectionError, unreachable_database_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)

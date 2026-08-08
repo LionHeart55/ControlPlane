@@ -131,4 +131,5 @@ asyncio_mode = "auto"
 testpaths = ["app/tests"]
 markers = [
     "integration: requires a running stack (deselect with -m 'not integration')",
+    "destructive: stops and restarts containers; restores them afterwards",
 ]

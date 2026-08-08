@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import socket
 from collections.abc import AsyncIterator
 
+from sqlalchemy.exc import InterfaceError, OperationalError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -12,6 +14,27 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.config import Settings, get_settings
+
+# Every way "PostgreSQL is unreachable" actually arrives. One tuple, used by the
+# exception handlers, the envelope's cluster fallback and the job guard, because
+# three near-identical lists is how one of them ends up missing a case.
+#
+# socket.gaierror is the one that matters and the one that was missing. When a
+# container stops, Docker removes its DNS record, so from inside the network the
+# failure is NAME RESOLUTION, not a refused connection -- and SQLAlchemy does
+# not wrap it, because a gaierror raised inside asyncpg's connect is not a DBAPI
+# error. It escaped as a raw OSError and every metadata route returned 500
+# instead of 503.
+#
+# It went unnoticed because the same drill passed when the API ran on the host:
+# there the DSN says localhost, the name always resolves, and the failure is
+# ConnectionRefusedError. Containerising the API changed the failure mode.
+DATABASE_UNREACHABLE: tuple[type[BaseException], ...] = (
+    OperationalError,
+    InterfaceError,
+    socket.gaierror,
+    ConnectionError,  # covers ConnectionRefusedError / ConnectionResetError
+)
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None

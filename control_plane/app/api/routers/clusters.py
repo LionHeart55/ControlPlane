@@ -132,6 +132,11 @@ async def update_cluster(
     if changes:
         await ClusterRepository(session).update(cluster, **changes)
         await session.commit()
+        # Required, not defensive. `updated_at` carries onupdate=now(), so the
+        # UPDATE leaves that attribute expired and reading it needs a SELECT.
+        # Serialising without this raises MissingGreenlet inside pydantic --
+        # a 500 from an otherwise successful write.
+        await session.refresh(cluster)
     return ClusterRead.model_validate(cluster)
 
 
@@ -153,4 +158,7 @@ async def update_cluster(
 async def delete_cluster(cluster_id: ClusterId, session: DbDep) -> ClusterRead:
     cluster = await cluster_service.delete_cluster(session, cluster_id)
     await session.commit()
+    # Same reason as PATCH: the soft delete is an UPDATE, so `updated_at` is
+    # expired and must be reloaded before serialisation.
+    await session.refresh(cluster)
     return ClusterRead.model_validate(cluster)
