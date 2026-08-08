@@ -1,8 +1,301 @@
 # Architecture
 
-> Component responsibilities, the degradation envelope and the data model are
-> written up in WP-16. The sections below are recorded as their work packages
-> land, while the evidence is fresh.
+How the pieces fit, and why the load-bearing decisions were made the way they
+were. Anything measured rather than assumed says so and points at the evidence.
+
+## Contents
+
+- [Component responsibilities](#component-responsibilities)
+- [The degradation envelope](#the-degradation-envelope)
+- [Health aggregation: six ordered rules](#health-aggregation-six-ordered-rules)
+- [The data model](#the-data-model)
+- [Concurrency and timeouts](#concurrency-and-timeouts)
+- [The Docker socket mount: a deliberate security trade-off](#the-docker-socket-mount-a-deliberate-security-trade-off)
+- [Metrics: how the allowlist was chosen](#metrics-how-the-allowlist-was-chosen)
+
+---
+
+## Component responsibilities
+
+### `cp-dashboard` — nginx + the SPA
+
+Serves the built React bundle and reverse-proxies `/api/` to `cp-api`. One
+origin, so there is no CORS configuration and no environment-specific base URL
+in the client: the same relative fetch paths work behind nginx in production and
+behind Vite's dev proxy locally.
+
+Two details are non-obvious and both were bugs first. `proxy_pass` has **no
+trailing slash** — adding one makes nginx strip the matched `/api/` prefix, so
+every route 404s. And the upstream is resolved through a **variable with an
+explicit `resolver`**, because a literal hostname in `proxy_pass` is resolved
+once at config load and cached for the life of the worker; recreating `cp-api`
+then 502s the dashboard silently until nginx itself restarts. Using a variable
+forces per-request resolution, and once it is a variable `$request_uri` must be
+appended by hand or every request arrives at the backend as `/`.
+
+### `cp-api` — FastAPI
+
+Four layers, deliberately strict about what each may do:
+
+| Layer | May | May not |
+|---|---|---|
+| **routers** (`app/api/routers/`) | Shape requests and responses, build envelopes | Contain business logic or talk to adapters directly for decisions |
+| **services** (`app/services/`) | Decide status, orchestrate fan-outs | Touch the database directly, or know about HTTP |
+| **repositories** (`app/repositories/`) | Thin async CRUD, return ORM objects | Contain any business logic, open transactions, or write events |
+| **adapters** (`app/adapters/`) | Talk to Milvus, Docker, Prometheus, MinIO, etcd | Know about clusters, the database, or the API contract |
+
+The split is what makes the six health rules testable without any
+infrastructure: `aggregate_status()` is a pure function over a `HealthSignals`
+dataclass, so the entire truth table runs in milliseconds against no containers.
+
+Adapters are process-wide singletons held in `app/adapters/registry.py`, keyed
+by endpoint. That matters more than it looks: a fresh `MilvusAdapter` per call
+would open a new gRPC channel every 15 seconds *and* discard the circuit
+breaker's failure count, so it could never reach `fail_max` and open.
+
+### `cp-migrate` — one-shot
+
+`alembic upgrade head`, `restart: "no"`, and `cp-api` depends on it with
+`condition: service_completed_successfully`. Migrations deliberately do **not**
+run from the API entrypoint: with more than one replica every one of them would
+race on `alembic_version`, and the loser either deadlocks or half-applies a
+revision. As a separate service the ordering is explicit, and a failed migration
+stops the API from starting at all rather than letting it serve queries against
+a half-migrated schema.
+
+### The scheduler
+
+Three jobs inside the API process, `AsyncIOScheduler`, all with
+`max_instances=1` and `coalesce=True` so a probe slower than its interval cannot
+stack up behind itself.
+
+| Job | Interval | Does |
+|---|---|---|
+| `health_job` | `CP_HEALTH_INTERVAL_S` (15 s, jittered) | Probe → aggregate → persist → **event only on transition** |
+| `snapshot_job` | `CP_SNAPSHOT_INTERVAL_S` (60 s) | Component and collection snapshots; `component_state_change` on transition |
+| `retention_job` | daily at 03:17 UTC | Purge aged rows |
+
+Every job body is wrapped so nothing it raises reaches the scheduler, and an
+unreachable PostgreSQL is a logged **skip** rather than a failure — a control
+plane that silently stopped health-checking is worse than one that is obviously
+down.
+
+The scheduled probe passes `force=True`, bypassing the circuit breaker. This is
+load-bearing in both directions: the breaker protects the *request* path from
+piling up against a dead dependency, while the job keeps measuring reality so
+the stored history shows real error codes instead of a wall of `BREAKER_OPEN`,
+and so recovery is noticed without waiting out `CP_BREAKER_RESET_S`.
+
+---
+
+## The degradation envelope
+
+The single most important rule in the system:
+
+> **A dependency being down never produces a 5xx on a read endpoint.**
+> Only PostgreSQL can cause a 503, and only on routes that cannot answer
+> without it.
+
+Every endpoint mixing stored and live data returns the same shape regardless of
+what is broken:
+
+```jsonc
+{
+  "cluster": { /* from PostgreSQL, or null */ },
+  "live":    { /* or null */ },
+  "live_status": "ok" | "stale" | "unavailable",
+  "observed_at": "2026-08-08T00:51:28Z",
+  "stale": false,
+  "degraded_reason": null | { "code": "...", "message": "...", "since": null }
+}
+```
+
+| `live_status` | Means | `live` | UI |
+|---|---|---|---|
+| `ok` | Fetched just now | populated | render normally |
+| `stale` | Real data, but the dependency did not answer *this* time | populated, from cache | **dim it**, show `observed_at` |
+| `unavailable` | Nothing usable | `null` | show the code from `degraded_reason` |
+
+Three decisions inside that are easy to get wrong:
+
+**`observed_at` is when the data was true, not when it was served.** A stale
+response carries the original timestamp, which is the only thing that makes
+"as of 12:03:41 (stale)" honest.
+
+**Cached data is always flagged `stale`, even inside the fresh TTL.** The value
+may be two seconds old, but the dependency did not answer *now*, so it is not
+verifiable and must not be presented as current.
+
+**Some resources are never served from cache.** Logs and live health verdicts
+are marked uncacheable: a stale log tail is indistinguishable from a live one
+and would send someone debugging the wrong minute, and a cached "healthy"
+verdict during an outage is the exact lie the whole design exists to prevent.
+
+It is centralised in `app/api/envelope.py::resolve_live()` rather than
+per-route, because a per-route `try/except` would be forgotten exactly once — on
+the route that mattered. Bugs are deliberately **not** caught there: a
+`DependencyUnavailableError` gets the envelope, anything else stays a 500, so a
+broken code path cannot quietly serve nulls forever.
+
+`/clusters/{id}/health` reads `live_status` slightly differently and it is
+worth knowing why. A probe that successfully determines *Milvus is down* has
+**succeeded** — so `live_status` stays `ok` and the outage is reported inside
+`live` as `status: "unavailable"` with the rule number and error code. Nulling
+`live` would discard exactly the information the endpoint exists to deliver.
+`degraded_reason` is populated either way, so a client has one field to check.
+
+### Surviving a PostgreSQL outage
+
+`/clusters/{id}/health` must keep answering with live Milvus data and
+`cluster: null` when the database is down — but `endpoint_uri` *lives* in that
+database. It is resolved from a long-window last-known-good cache of the cluster
+row, populated on every successful metadata read.
+
+One trap found by drilling it: when a container stops, Docker removes its DNS
+record, so from inside the compose network the failure is `socket.gaierror`
+(name resolution), **not** a refused connection — and a gaierror raised inside
+asyncpg's connect is not a DBAPI error, so SQLAlchemy never wraps it. It escaped
+as a raw `OSError` and every metadata route returned 500 instead of 503. All
+"database is unreachable" detection now shares one `DATABASE_UNREACHABLE` tuple
+in `app/db/session.py`.
+
+---
+
+## Health aggregation: six ordered rules
+
+`app/services/health_service.py::aggregate_status()` is the single place that
+decides overall status. Order is the specification, not an implementation
+detail.
+
+| # | Condition | Status |
+|---|---|---|
+| 6 | Milvus was not probed at all — checked **first**, as a floor | `unknown` |
+| 1 | Milvus gRPC unreachable | `unavailable` |
+| 2 | Connected, but the deep probe failed | `degraded` |
+| 2b | Object store or metadata store probed and down | `degraded` |
+| 3 | An expected component is not running | `degraded` |
+| 4 | Metrics scrape or Docker socket failing | `degraded` |
+| 5 | Otherwise | `healthy` |
+
+Rule 6 is checked first because it is a precondition: "we could not look" must
+never fall through to rule 5's `healthy`.
+
+**Why a dead Docker socket is `degraded`, not `unknown`.** Rules 3 and 4 both
+need Docker, so losing it means rule 3 cannot be evaluated — which sounds like
+rule 6. But rules 1 and 2 have already established that Milvus answers *and*
+serves. The cluster is demonstrably working; what is lost is visibility. That is
+observability loss, and it should be visible rather than hidden behind an
+ambiguous `unknown`.
+
+**Why `BREAKER_OPEN` maps to `unavailable`, not `unknown`.** A short-circuit
+means the probe was skipped, so `unknown` looks honest. It is wrong twice over:
+the breaker only opens after `fail_max` consecutive real failures, so there *is*
+recent evidence — and reporting `unknown` would flip the status mid-outage
+(`unavailable → unknown`) the moment the breaker tripped, emitting a second
+`health_transition` event for a single incident. A stable status through an
+outage is required, not incidental.
+
+**Why rule 2b exists at all.** With MinIO stopped, Milvus's `/healthz` returns
+200 *and* the deep probe passes completely — `list_collections` and
+`describe_collection` are answered from etcd metadata via RootCoord and never
+touch object storage. The only thing that noticed was component reconciliation,
+which works solely because MinIO happens to be a container this control plane
+can see. Against S3, or on Kubernetes, that signal disappears. The direct store
+probes make detection independent of Docker. Measured in
+[RELIABILITY.md scenario C](RELIABILITY.md).
+
+---
+
+## The data model
+
+Five tables. One is mutable state; four are append-only.
+
+```
+clusters (UUID PK)  ──┬─< health_checks        (BIGSERIAL, append-only, ON DELETE CASCADE)
+                      ├─< component_status     (BIGSERIAL, append-only, ON DELETE CASCADE)
+                      ├─< collection_snapshots (BIGSERIAL, append-only, ON DELETE CASCADE)
+                      └─< events               (BIGSERIAL, append-only, ON DELETE SET NULL)
+```
+
+| Table | Shape | Notes |
+|---|---|---|
+| `clusters` | mutable, UUID PK | Registered deployments. Soft-deleted (`deployment_status = 'deleted'`) |
+| `health_checks` | append-only time series | One row per probe. Index `(cluster_id, checked_at DESC)` |
+| `component_status` | append-only | One row per component per snapshot. `DISTINCT ON` reconstructs the current view |
+| `collection_snapshots` | append-only | Per-collection stats over time |
+| `events` | append-only | The incident and audit trail |
+
+**Three native PostgreSQL enums** (`deployment_type`, `deployment_status`,
+`health_status`) are created before the tables that reference them and dropped
+after, in a hand-written migration. They are declared with `create_type=False`
+so SQLAlchemy does not try to emit `CREATE TYPE` implicitly per table, and with
+`values_callable` so the lowercase *values* are stored rather than the Python
+member names. Vocabularies expected to grow — component state, event type,
+severity — are plain `TEXT` instead, because widening a `TEXT` column costs
+nothing whereas `ALTER TYPE ... ADD VALUE` cannot run inside a transaction.
+
+**Why `component_status` is append-only despite an "upsert" in the brief.** The
+schema gives it `BIGSERIAL` + `observed_at` and prunes it by age, which is an
+append-only series by definition. An upsert would keep one row per component and
+make retention meaningless — and, more importantly, destroy the previous
+observation that `component_state_change`-on-transition depends on. With a
+single mutable row there is nothing to compare against.
+
+**`events.cluster_id` is `ON DELETE SET NULL`**, alone among the four. If a
+cluster is ever hard-deleted the incident history must survive it; that history
+is the entire point of the table. The other three cascade because a sample
+series about a cluster that no longer exists is noise.
+
+### The transition contract
+
+`events` gets a row **only when something changes**, never per poll. At a 15 s
+interval a per-poll writer would add ~5 760 rows a day and bury the handful that
+describe an actual incident. Measured across the drills: **19 consecutive
+`unavailable` health checks produced exactly 2 events** — one going down, one
+coming back.
+
+The previous status is read from `clusters.last_health_status` under a row lock
+inside the same transaction as the write, not from process memory. An in-memory
+version would emit a spurious transition every time the API restarted — which,
+during an incident, is exactly when it would lie.
+
+---
+
+## Concurrency and timeouts
+
+pymilvus is synchronous, so every Milvus call is pushed through
+`asyncio.to_thread` with **two nested deadlines**:
+
+- the **inner** `timeout=` handed to pymilvus, which becomes a real gRPC
+  deadline — this is the one that actually works;
+- the **outer** `asyncio.wait_for`, which bounds the coroutine so the event loop
+  is never held up, but *cannot* cancel a thread already blocked in C code.
+
+Without the inner deadline a paused Milvus leaks one worker thread per probe,
+forever. The drills show both deadlines in the latency signature: a warm channel
+against a hung Milvus fails at 5 004 ms (`MILVUS_RPC_TIMEOUT_S`), while a
+reconnecting one fails at ~3 010 ms (`MILVUS_CONNECT_TIMEOUT_S`).
+
+### The `/overview` fan-out
+
+Seven sources, concurrent, under a 6 s global budget. Two things make that work:
+
+**Per-branch sub-budgets, all strictly under the global.** `MILVUS_RPC_TIMEOUT_S`
+is 5 s and the adapter adds a thread-handoff margin, so a single slow probe
+could otherwise consume the entire budget and starve every other panel. The
+global becomes a backstop that should never fire.
+
+**`asyncio.wait`, not `gather(..., return_exceptions=True)` inside a
+`wait_for`.** The contract asks for both a global timeout *and* "partial results
+always returned", and those are contradictory as usually written: when the outer
+`wait_for` fires it cancels the gather and every branch is lost, including the
+ones that already finished. `asyncio.wait` returns the completed set and cancels
+only what is still running.
+
+Measured against a fully hung Milvus: **3.5 s**, inside budget, with the health
+panel honestly reporting `unknown`.
+
+---
 
 ## The Docker socket mount: a deliberate security trade-off
 
